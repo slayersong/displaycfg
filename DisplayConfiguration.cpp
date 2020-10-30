@@ -13,7 +13,14 @@ void ShowCurrentDisplayConfig(void);
 NvAPI_Status SetMode(void);
 
 NV_DISPLAYCONFIG_PATH_INFO g_pathInfo[MAX_OUTPUT_NUM];
-int _tmain(int argc, _TCHAR* argv[])
+
+void main()
+{
+	DisplayCfg cfg;
+	cfg.Init();
+}
+
+int _111tmain(int argc, _TCHAR* argv[])
 {
 	NvAPI_Status ret = NVAPI_OK;
 	ret = NvAPI_Initialize();
