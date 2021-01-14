@@ -3,7 +3,7 @@
 #include <iostream>
 #include <vector>
 #include<map>
-
+#include <iterator>
 const int MAX_OUTPUT_NUM = 4; 
 using namespace std;
 struct MonitorInfo
@@ -12,9 +12,9 @@ struct MonitorInfo
 	NV_GPU_CONNECTOR_DATA connect_data;
 	//int localIndex;
 	NV_POSITION pos;
+	NV_EDID edid;
 	bool bPrimary;
 	NvU32 nDisplayID;
-	char edid[256];
 	NvU16 iPathIdx;
 	NvU16 iPathSubIdx; // Default is 0, if > 0, it means pathinfo.targetcount > 1
 };
@@ -29,10 +29,12 @@ enum eDisplayState
 	DP1DP2,			
 	Only1Dis		// Only One display connected, wiil do nothing
 };
- //DVI  ----> Port 0
- //DP next to DVI ----> port 1
- //The last DP  ----> port 2
-const int K2200_portIndex[3] = { 2, 1, 0 };
+
+ //DVI  ----> Port 0 Copy DP1, Pos 1920 1080
+ //DP next to DVI ----> port 1  Pos, 1920 1080
+ //The last DP  ----> port 2 Primary,   Pos 0,0
+//const int K2200_portIndex[3] = { 2, 1, 0 };
+const int K2200_portIndex[3] = { 0, 1, 2 };
 
 class DisplayCfg
 {
@@ -48,8 +50,12 @@ public:
 	bool CloneExtendDisplay(int srcLoc, int destLoc);
 	void ShowCurrentDisplayConfig();
 	NvAPI_Status GetPortIndex();
-	NvAPI_Status GetAllPortEDID();
+	NvAPI_Status ForceEdidByPortIndex(int iPortIndex, const NV_EDID srcEdid);
+	NvAPI_Status GetAllDisplayIDs();
 	eDisplayState CheckStatus();
+
+	void ForceEdid();
+	NvAPI_Status Run(const int* portIndex,int portNum );
 private:
 	vector<MonitorInfo> m_disInfo;
 	map<int, MonitorInfo> m_port_mapinfo;
@@ -58,8 +64,12 @@ private:
 	NV_DISPLAYCONFIG_PATH_INFO m_pathInfo[MAX_OUTPUT_NUM];
 	NvU32 m_nDisplayIds = 0;
 	NvU32 m_physicalGpuCount = 0;
-	//NV_GPU_DISPLAYIDS m_pDisplayIds[MAX_OUTPUT_NUM];
-	NV_GPU_DISPLAYIDS* m_pDisplayIds = NULL;
+	NV_GPU_DISPLAYIDS m_pDisplayIds[8];
+	NvU32 m_maxDisplayCount;
+	//NV_GPU_DISPLAYIDS* m_pDisplayIds = NULL;
 	NvPhysicalGpuHandle m_hPhysicalGpu[NVAPI_MAX_PHYSICAL_GPUS];
 
+	//Src index in PathInfo;
+	NvU16 iCloneSrcIndex;
+	NvU16 iCondeDstIndex;
 };

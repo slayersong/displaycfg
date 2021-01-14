@@ -1,17 +1,288 @@
 #include "MonitorInfo.h"
 
 
+NvAPI_Status DisplayCfg::GetAllDisplayIDs()
+{
+	NvAPI_Status ret = NvAPI_GPU_GetAllDisplayIds(m_hPhysicalGpu[0], NULL, &m_maxDisplayCount);
+	for (int i = 0; i < m_maxDisplayCount; i++)
+	{
+		m_pDisplayIds[i].version = NV_GPU_DISPLAYIDS_VER;
+	}
+	
+	ret = NvAPI_GPU_GetAllDisplayIds(m_hPhysicalGpu[0], m_pDisplayIds, &m_maxDisplayCount);
+	if (ret != NVAPI_OK && m_nDisplayIds)
+	{
+		cout << "Cannot get All DisplayIDs" << endl;
+		return ret;
+	}
+
+//	NvAPI_Status ret = NVAPI_OK;
+	NvDisplayHandle disp = NULL;
+	NV_DISPLAY_PORT_INFO port_info;
+	port_info.version = NV_DISPLAY_PORT_INFO_VER2;
+	NvU32 outputID;
+	NV_GPU_CONNECTOR_INFO connectInfo;
+	NV_GPU_CONNECTOR_INFO infs[8];
+	for (int i = 0; i < m_maxDisplayCount; i++)
+	{
+		NvU32 displayID = m_pDisplayIds[i].displayId;
+		ret = NvAPI_DISP_GetDisplayHandleFromDisplayId(displayID, &disp);
+		if (ret != NVAPI_OK)
+		{
+			cout << "GetDisplayHandleFromDisplayId Failed, status is " << ret << endl;
+			return ret;
+		}
+
+		ret = NvAPI_GetAssociatedDisplayOutputId(disp, &outputID);
+		if (ret != NVAPI_OK)
+		{
+			cout << "NvAPI_GetAssociatedDisplayOutputId Failed, status is " << ret << endl;
+			return ret;
+		}
+
+		ret = NvAPI_GetDisplayPortInfo(disp, outputID, &port_info);
+		if (ret != NVAPI_OK)
+		{
+			cout << "NvAPI_GetDisplayPortInfo Failed, status is " << ret << endl;
+			return ret;
+		}
+
+		connectInfo.version = NV_GPU_CONNECTOR_INFO_VER1;
+		ret = NvAPI_GPU_GetConnectorInfo(m_hPhysicalGpu[0], outputID, &connectInfo);
+		if (ret != NVAPI_OK)
+		{
+			cout << "NvAPI_GPU_GetConnectorInfo Failed, status is " << ret << endl;
+			return ret;
+		}
+
+		infs[i] = connectInfo;
+	}
+}
+
+NvAPI_Status DisplayCfg::ForceEdidByPortIndex(int iPortIndex, const NV_EDID srcEdid)
+{
+	if (m_port_mapinfo.size() > 0)
+	{
+		map<int, MonitorInfo>::iterator it = m_port_mapinfo.find(iPortIndex);
+		if (it == m_port_mapinfo.end())
+		{
+			cout << "Can't find the port " << it->first << "'s edid " << endl;
+			return NVAPI_ERROR;
+		}
+				
+		NvAPI_Status ret = NvAPI_GPU_SetEDID(NULL, it->second.nDisplayID, &it->second.edid);
+		if (ret != NVAPI_OK)
+		{
+			cout << "Cant set the port " << iPortIndex << "status is " << ret << endl;
+			return ret;
+		}	
+	}
+
+	return NVAPI_OK;
+}
+
+//SetMode()
+//{
+//	NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO *detailsPrimary = NULL;
+//	detailsPrimary = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
+//
+//	NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO *detailsClone = NULL;
+//	detailsClone = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
+//
+//
+//	for (NvU32 i = 0; i < pathCount; i++)
+//	{
+//		totalTargets += pathInfo[i].targetInfoCount; // Count all targets
+//		DisplayID = pathInfo[i].targetInfo[0].displayId; // Store displayId to use later
+//		if (pathInfo[i].targetInfo[0].details)
+//		{
+//			details = pathInfo[i].targetInfo[0].details;
+//		}
+//	}
+//	//Find Primary 
+//
+//
+//	pathInfo[1].targetInfo = (NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(2 * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+//	pathInfo[1].targetInfo = primary;
+//}
+NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
+{
+	int i, j = 0;
+	bool bNeedSwapPrimary = false;
+	bool bNeedSwapPrimaryPos = false;
+	bool bNeedClone = false;
+	//Index in PathInfo
+	int iCurPrimaryIndex = -1;
+	int iDestPrimaryIndex = -1;
+	//Hard code  to  be test later;
+	int iClondeIndx;
+	NvAPI_Status ret;
+
+	if (m_port_mapinfo.size() > 0)
+	{
+		map<int, MonitorInfo>::iterator it = m_port_mapinfo.find(portIndex[0]);
+		if (it == m_port_mapinfo.end())
+		{
+			cout << "Port " << it->first << " disconncected" << endl;
+			return NVAPI_ERROR;
+		}
+
+		if (it->second.bPrimary == true )
+		{
+			// Port2 Already be primary
+			iDestPrimaryIndex = iCurPrimaryIndex = it->second.iPathIdx;
+			if (it->second.pos.x != 0)
+			{
+				bNeedSwapPrimaryPos = true;
+			//	bNeedSwapPrimary = true;
+			}
+		}
+		else
+		{
+			bNeedSwapPrimary = true;
+			iDestPrimaryIndex = it->second.iPathIdx;
+			for (it = m_port_mapinfo.begin(); it!=m_port_mapinfo.end(); it++)
+			{
+				if (it->second.bPrimary == true)
+					iCurPrimaryIndex = it->second.iPathIdx;
+			}
+		}
+			
+
+		if (m_pathCount == 3)
+		{
+			bNeedClone = true;
+		}
+
+		//Find the DP2 Port pathinfo index;
+		it = m_port_mapinfo.find(portIndex[1]);
+		if (it == m_port_mapinfo.end())
+		{
+			cout << "Clone Port " << it->first << " disconncected" << endl;
+			return NVAPI_ERROR;
+		}
+
+		iCloneSrcIndex = it->second.iPathIdx;
+		
+		//TODO:
+		bNeedSwapPrimary = false;
+		if (bNeedSwapPrimary)
+		{
+			//m_pathInfo[iCurPrimaryIndex].sourceModeInfo->bGDIPrimary = false;
+			//m_pathInfo[iDestPrimaryIndex].sourceModeInfo->bGDIPrimary = true;
+
+			NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO swapInfo;
+			swapInfo = *m_pathInfo[iCurPrimaryIndex].targetInfo[0].details;
+
+			*m_pathInfo[iCurPrimaryIndex].targetInfo[0].details = 
+				*m_pathInfo[iDestPrimaryIndex].targetInfo[0].details;
+
+			*m_pathInfo[iDestPrimaryIndex].targetInfo[0].details = swapInfo;
+			
+			NvU32 swapDisplayID;
+
+			swapDisplayID = m_pathInfo[iCurPrimaryIndex].targetInfo[0].displayId;
+			m_pathInfo[iCurPrimaryIndex].targetInfo[0].displayId = m_pathInfo[iDestPrimaryIndex].targetInfo[0].displayId;
+			m_pathInfo[iDestPrimaryIndex].targetInfo[0].displayId = swapDisplayID;
+
+		}
+
+		if (bNeedSwapPrimaryPos == true)
+		{
+			//iDestPrimaryIndex portIndex[0] 
+			m_pathInfo[iDestPrimaryIndex].sourceModeInfo->position = NV_POSITION{ 0,0 };
+			m_pathInfo[portIndex[1]].sourceModeInfo->position = NV_POSITION{ 1920,0 };
+			m_pathInfo[portIndex[2]].sourceModeInfo->position = NV_POSITION{ 1920,0 };
+		}
+		//ret = NvAPI_DISP_SetDisplayConfig(3, m_pathInfo, 0);
+		//cout << "Swap the primary screen print anykey to continue" << endl;
+		//getchar();
+		//Hard code TODO:
+		if (iDestPrimaryIndex == 0)
+			iClondeIndx = 1;
+		else
+			iClondeIndx = 0;
+/*
+		NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO *details = NULL;
+		details = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
+		details = m_pathInfo[2].targetInfo[0].details;
+
+		m_pathInfo[iClondeIndx].targetInfoCount = 2;
+		NV_DISPLAYCONFIG_PATH_TARGET_INFO* primary = (NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(m_pathInfo[iClondeIndx].targetInfoCount * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+		//printf(".");
+		memset(primary, 0, 2 * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+		primary->displayId = m_port_mapinfo[portIndex[1]].nDisplayID;
+		printf(".");
+		primary->details = m_pathInfo[iClondeIndx].targetInfo[0].details;
+		primary++;
+		primary->displayId = m_port_mapinfo[portIndex[2]].nDisplayID;
+		primary->details = details;
+		primary--;
+		delete m_pathInfo[iClondeIndx].targetInfo;
+		m_pathInfo[iClondeIndx].targetInfo = (NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(2 * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+		m_pathInfo[iClondeIndx].targetInfo = primary;
+		}
+		m_pathInfo[iClondeIndx].sourceModeInfo[0].bGDIPrimary = 1;// Decide the primary display
+#ifdef NV_DISPLAYCONFIG_PATH_INFO_VER3 
+		m_pathInfo[iClondeIndx].sourceModeInfoCount = 1;
+#endif
+	*/
+		//Hard code!
+
+		//NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO detailsprimary;
+		////detailsprimary = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
+		//NvU32  PrimaryDisplayID = m_pathInfo[iCurPrimaryIndex].targetInfo[0].displayId;
+		//detailsprimary = * m_pathInfo[iCurPrimaryIndex].targetInfo[0].details;
+		//delete m_pathInfo[0].targetInfo;
+
+		NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO *details = NULL;
+		details = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
+		NvU32  DisplayID = m_pathInfo[2].targetInfo[0].displayId; 
+		details = m_pathInfo[2].targetInfo[0].details;
+		
+		// Activate and Set 2 targets in Clone mode; pathCount >= 1 and targetInfoCount > 1	
+
+		m_pathInfo[1].targetInfoCount = 2;
+		NV_DISPLAYCONFIG_PATH_TARGET_INFO* primary = (NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(2* sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+		printf(".");
+		memset(primary, 0, m_pathInfo[1].targetInfoCount * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+		primary->displayId = m_pathInfo[1].targetInfo[0].displayId;
+		printf(".");
+		primary->details = m_pathInfo[1].targetInfo[0].details;
+		primary++;
+		primary->displayId = DisplayID;
+		primary->details = details;
+		primary--;
+		delete m_pathInfo[1].targetInfo;
+		m_pathInfo[1].targetInfo = (NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(2 * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+		m_pathInfo[1].targetInfo = primary;
+		//pathInfo[0].sourceModeInfo[0].bGDIPrimary = 1;// Decide the primary display
+
+#ifdef NV_DISPLAYCONFIG_PATH_INFO_VER3 
+				//pathInfo[0].sourceModeInfoCount = 1;
+#endif
+		//if (bNeedSwapPrimary)
+		//{
+		//	m_pathInfo[iCurPrimaryIndex].sourceModeInfo->bGDIPrimary = false;
+		//	m_pathInfo[iDestPrimaryIndex].sourceModeInfo->bGDIPrimary = true;
+		//}
+
+		ret = NvAPI_DISP_SetDisplayConfig(2, m_pathInfo, 0);
+		}
+		
+	return NVAPI_OK;
+}
 
 NvAPI_Status DisplayCfg::GetDisplayID()
 {
-	NvAPI_Status ret = NvAPI_GPU_GetConnectedDisplayIds(m_hPhysicalGpu[0], m_pDisplayIds, &m_nDisplayIds, 0);
+	NvAPI_Status ret = NvAPI_GPU_GetConnectedDisplayIds(m_hPhysicalGpu[0], NULL, &m_nDisplayIds, 0);
 	if (ret != NVAPI_OK && m_nDisplayIds)
 	{
 		cout << "Cannot get connected DisplayIDs" << endl;
 		return ret;
 	}
 
-	m_pDisplayIds = (NV_GPU_DISPLAYIDS*)malloc(m_nDisplayIds * sizeof(NV_GPU_DISPLAYIDS));
+	//m_pDisplayIds = (NV_GPU_DISPLAYIDS*)malloc(m_nDisplayIds * sizeof(NV_GPU_DISPLAYIDS));
 	if (m_pDisplayIds)
 	{
 		memset(m_pDisplayIds, 0, m_nDisplayIds * sizeof(NV_GPU_DISPLAYIDS));
@@ -49,7 +320,7 @@ NvAPI_Status DisplayCfg::Init()
 		cout << "Cannot enumerate GPUs in the system..." <<endl;
 		return ret;
 	}
-
+	//ret = GetAllDisplayIDs();
 	ret = GetDisplayID();
 	if (ret != NVAPI_OK)
 	{
@@ -72,6 +343,19 @@ NvAPI_Status DisplayCfg::Init()
 	}
 
 	return ret;
+}
+
+void DisplayCfg::ForceEdid()
+{
+	//cout << "ForceEdid to handle hot plug" << endl;
+	
+	NvAPI_Status ret = ForceEdidByPortIndex(0, m_port_mapinfo[0].edid);
+	ret = ForceEdidByPortIndex(1, m_port_mapinfo[1].edid);
+	ret = ForceEdidByPortIndex(2, m_port_mapinfo[2].edid);
+	if (ret == NVAPI_OK)
+	{
+		cout << "Successful Force EDID " << endl;
+	}
 }
 
 eDisplayState DisplayCfg::CheckStatus()
@@ -128,10 +412,6 @@ NvAPI_Status DisplayCfg::GetPortIndex()
 				return ret;
 			}
 
-			NV_EDID edid;
-			edid.version = NV_EDID_VER;
-			ret = NvAPI_GPU_GetEDID(m_hPhysicalGpu[0], outputID, &edid);
-
 			connectInfo.version = NV_GPU_CONNECTOR_INFO_VER1;
 			ret = NvAPI_GPU_GetConnectorInfo(m_hPhysicalGpu[0], outputID, &connectInfo);
 			if (ret != NVAPI_OK)
@@ -140,6 +420,17 @@ NvAPI_Status DisplayCfg::GetPortIndex()
 				return ret;
 			}
 			
+			//get edid
+			NV_EDID edid;
+			edid.version = NV_EDID_VER;
+			ret = NvAPI_GPU_GetEDID(m_hPhysicalGpu[0], outputID, &edid);
+			if (ret != NVAPI_OK)
+			{
+				cout << "NvAPI_GPU_GetEDID Failed, status is " << ret 
+					 <<", Port Index is"<< connectInfo.connector->locationIndex << endl;
+				return ret;
+			}
+
 			MonitorInfo info;
 			info.iPathIdx = i;
 			info.iPathSubIdx = j;
@@ -147,9 +438,17 @@ NvAPI_Status DisplayCfg::GetPortIndex()
 			info.pos = m_pathInfo[i].sourceModeInfo[j].position;
 			info.connect_data = connectInfo.connector[0]; // TODO: totally 4 connectors?
 			info.bPrimary = (info.iPathSubIdx == 0 && m_pathInfo[i].sourceModeInfo->bGDIPrimary);
-			memset(info.edid, 0,edid.sizeofEDID);
-			memcpy(info.edid, edid.EDID_Data, NV_EDID_DATA_SIZE);
-			FILE* fp = fopen("test.edid", "w+");
+
+			memset(info.edid.EDID_Data, 0,edid.sizeofEDID);
+
+			info.edid.version = NV_EDID_VER;
+			info.edid.edidId = edid.edidId;
+			info.edid.sizeofEDID = edid.sizeofEDID;
+			info.edid.offset = edid.offset;
+			memcpy(info.edid.EDID_Data, edid.EDID_Data, NV_EDID_DATA_SIZE);
+
+			/*FILE* fp = fopen("test.edid", "w+");
+			//File test, just copy is OK
 			if (fp)
 			{
 				fwrite(info.edid,sizeof(char), NV_EDID_DATA_SIZE,fp);
@@ -161,7 +460,10 @@ NvAPI_Status DisplayCfg::GetPortIndex()
 			char buf[256];
 			memset(buf, 0, NV_EDID_DATA_SIZE);
 			int len = fread(buf, sizeof(char), NV_EDID_DATA_SIZE, fp2);
-
+			if (strcmp(buf,info.edid) != 0)
+			{
+				cout << "load edid failed" << endl;
+			}*/
 			m_disInfo.push_back(info);
 
 			m_port_mapinfo.insert(pair<int, MonitorInfo>(info.connect_data.locationIndex, info));
