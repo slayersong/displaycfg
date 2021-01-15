@@ -1,4 +1,4 @@
-#include "MonitorInfo.h"
+#include "Displaycfg.h"
 
 
 NvAPI_Status DisplayCfg::GetAllDisplayIDs()
@@ -81,30 +81,6 @@ NvAPI_Status DisplayCfg::ForceEdidByPortIndex(int iPortIndex, const NV_EDID srcE
 	return NVAPI_OK;
 }
 
-//SetMode()
-//{
-//	NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO *detailsPrimary = NULL;
-//	detailsPrimary = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
-//
-//	NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO *detailsClone = NULL;
-//	detailsClone = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
-//
-//
-//	for (NvU32 i = 0; i < pathCount; i++)
-//	{
-//		totalTargets += pathInfo[i].targetInfoCount; // Count all targets
-//		DisplayID = pathInfo[i].targetInfo[0].displayId; // Store displayId to use later
-//		if (pathInfo[i].targetInfo[0].details)
-//		{
-//			details = pathInfo[i].targetInfo[0].details;
-//		}
-//	}
-//	//Find Primary 
-//
-//
-//	pathInfo[1].targetInfo = (NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(2 * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
-//	pathInfo[1].targetInfo = primary;
-//}
 NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
 {
 	int i, j = 0;
@@ -120,9 +96,12 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
 
 	if (m_port_mapinfo.size() > 0)
 	{
+		// portIndex[0] should be the primary display
 		map<int, MonitorInfo>::iterator it = m_port_mapinfo.find(portIndex[0]);
 		if (it == m_port_mapinfo.end())
 		{
+			// This is only run the first time, if we have forced the EDID,
+			// We dno't need to check if the connetor is connected
 			cout << "Port " << it->first << " disconncected" << endl;
 			return NVAPI_ERROR;
 		}
@@ -130,12 +109,13 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
 		if (it->second.bPrimary == true )
 		{
 			// Port2 Already be primary
-			iDestPrimaryIndex = iCurPrimaryIndex = it->second.iPathIdx;
-			if (it->second.pos.x != 0)
-			{
-				bNeedSwapPrimaryPos = true;
-			//	bNeedSwapPrimary = true;
-			}
+
+			//iDestPrimaryIndex = iCurPrimaryIndex = it->second.iPathIdx;
+			//if (it->second.pos.x != 0)
+			//{
+			//	bNeedSwapPrimaryPos = true;
+			////	bNeedSwapPrimary = true;
+			//}
 		}
 		else
 		{
@@ -143,12 +123,11 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
 			iDestPrimaryIndex = it->second.iPathIdx;
 			for (it = m_port_mapinfo.begin(); it!=m_port_mapinfo.end(); it++)
 			{
-				if (it->second.bPrimary == true)
+				if (it->second.bPrimary == true)// && it->second.iPathIdx != iDestPrimaryIndex)
 					iCurPrimaryIndex = it->second.iPathIdx;
 			}
 		}
-			
-
+		
 		if (m_pathCount == 3)
 		{
 			bNeedClone = true;
@@ -162,16 +141,19 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
 			return NVAPI_ERROR;
 		}
 
-		iCloneSrcIndex = it->second.iPathIdx;
+		// use the little one of m_pathinfo index 
+		iCloneSrcIndex = (m_port_mapinfo[portIndex[1]].iPathIdx, m_port_mapinfo[portIndex[2]].iPathIdx);
+		//iCloneSrcIndex = it->second.iPathIdx;
 		
-		//TODO:
-		bNeedSwapPrimary = false;
 		if (bNeedSwapPrimary)
 		{
-			//m_pathInfo[iCurPrimaryIndex].sourceModeInfo->bGDIPrimary = false;
-			//m_pathInfo[iDestPrimaryIndex].sourceModeInfo->bGDIPrimary = true;
+			m_pathInfo[iCurPrimaryIndex].sourceModeInfo->bGDIPrimary = false;
+			m_pathInfo[iDestPrimaryIndex].sourceModeInfo->bGDIPrimary = true;
 
-			NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO swapInfo;
+			//iDestPrimaryIndex portIndex[0] 
+			m_pathInfo[portIndex[0]].sourceModeInfo->position = NV_POSITION{ 0,0 };
+			m_pathInfo[portIndex[1]].sourceModeInfo->position = NV_POSITION{ 1920,0 };
+			/*NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO swapInfo;
 			swapInfo = *m_pathInfo[iCurPrimaryIndex].targetInfo[0].details;
 
 			*m_pathInfo[iCurPrimaryIndex].targetInfo[0].details = 
@@ -183,92 +165,46 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
 
 			swapDisplayID = m_pathInfo[iCurPrimaryIndex].targetInfo[0].displayId;
 			m_pathInfo[iCurPrimaryIndex].targetInfo[0].displayId = m_pathInfo[iDestPrimaryIndex].targetInfo[0].displayId;
-			m_pathInfo[iDestPrimaryIndex].targetInfo[0].displayId = swapDisplayID;
+			m_pathInfo[iDestPrimaryIndex].targetInfo[0].displayId = swapDisplayID;	
 
+			if (bNeedSwapPrimaryPos == true)
+			{
+
+				//m_pathInfo[portIndex[2]].sourceModeInfo->position = NV_POSITION{ 1920,0 };
+			}
+			*/
 		}
+		NvU32 DisplayID = 0;
+		NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO *details = NULL;
+		details = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
 
-		if (bNeedSwapPrimaryPos == true)
+		// Store [2]DVI displayId to clone use
+		int Indx = m_port_mapinfo[portIndex[2]].iPathIdx;
+
+		DisplayID = m_pathInfo[Indx].targetInfo[0].displayId;
+		if (m_pathInfo[Indx].targetInfo[0].details)
 		{
-			//iDestPrimaryIndex portIndex[0] 
-			m_pathInfo[iDestPrimaryIndex].sourceModeInfo->position = NV_POSITION{ 0,0 };
-			m_pathInfo[portIndex[1]].sourceModeInfo->position = NV_POSITION{ 1920,0 };
-			m_pathInfo[portIndex[2]].sourceModeInfo->position = NV_POSITION{ 1920,0 };
+			details = m_pathInfo[i].targetInfo[0].details;
 		}
-		//ret = NvAPI_DISP_SetDisplayConfig(3, m_pathInfo, 0);
-		//cout << "Swap the primary screen print anykey to continue" << endl;
-		//getchar();
-		//Hard code TODO:
-		if (iDestPrimaryIndex == 0)
-			iClondeIndx = 1;
-		else
-			iClondeIndx = 0;
-/*
-		NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO *details = NULL;
-		details = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
-		details = m_pathInfo[2].targetInfo[0].details;
 
-		m_pathInfo[iClondeIndx].targetInfoCount = 2;
-		NV_DISPLAYCONFIG_PATH_TARGET_INFO* primary = (NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(m_pathInfo[iClondeIndx].targetInfoCount * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
-		//printf(".");
-		memset(primary, 0, 2 * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
-		primary->displayId = m_port_mapinfo[portIndex[1]].nDisplayID;
-		printf(".");
-		primary->details = m_pathInfo[iClondeIndx].targetInfo[0].details;
-		primary++;
-		primary->displayId = m_port_mapinfo[portIndex[2]].nDisplayID;
-		primary->details = details;
-		primary--;
-		delete m_pathInfo[iClondeIndx].targetInfo;
-		m_pathInfo[iClondeIndx].targetInfo = (NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(2 * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
-		m_pathInfo[iClondeIndx].targetInfo = primary;
-		}
-		m_pathInfo[iClondeIndx].sourceModeInfo[0].bGDIPrimary = 1;// Decide the primary display
-#ifdef NV_DISPLAYCONFIG_PATH_INFO_VER3 
-		m_pathInfo[iClondeIndx].sourceModeInfoCount = 1;
-#endif
-	*/
-		//Hard code!
-
-		//NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO detailsprimary;
-		////detailsprimary = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
-		//NvU32  PrimaryDisplayID = m_pathInfo[iCurPrimaryIndex].targetInfo[0].displayId;
-		//detailsprimary = * m_pathInfo[iCurPrimaryIndex].targetInfo[0].details;
-		//delete m_pathInfo[0].targetInfo;
-
-		NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO *details = NULL;
-		details = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
-		NvU32  DisplayID = m_pathInfo[2].targetInfo[0].displayId; 
-		details = m_pathInfo[2].targetInfo[0].details;
-		
-		// Activate and Set 2 targets in Clone mode; pathCount >= 1 and targetInfoCount > 1	
-
-		m_pathInfo[1].targetInfoCount = 2;
-		NV_DISPLAYCONFIG_PATH_TARGET_INFO* primary = (NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(2* sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
-		printf(".");
-		memset(primary, 0, m_pathInfo[1].targetInfoCount * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
-		primary->displayId = m_pathInfo[1].targetInfo[0].displayId;
-		printf(".");
-		primary->details = m_pathInfo[1].targetInfo[0].details;
+		// Consctruct the clone info
+		m_pathInfo[iCloneSrcIndex].targetInfoCount = 2;
+		NV_DISPLAYCONFIG_PATH_TARGET_INFO* primary = (NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(m_pathInfo[iCloneSrcIndex].targetInfoCount * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+		memset(primary, 0, m_pathInfo[iCloneSrcIndex].targetInfoCount * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+		primary->displayId = m_pathInfo[iCloneSrcIndex].targetInfo[0].displayId;
+		primary->details = m_pathInfo[iCloneSrcIndex].targetInfo[0].details;
 		primary++;
 		primary->displayId = DisplayID;
 		primary->details = details;
 		primary--;
-		delete m_pathInfo[1].targetInfo;
-		m_pathInfo[1].targetInfo = (NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(2 * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
-		m_pathInfo[1].targetInfo = primary;
-		//pathInfo[0].sourceModeInfo[0].bGDIPrimary = 1;// Decide the primary display
+		delete m_pathInfo[iCloneSrcIndex].targetInfo;
+		m_pathInfo[iCloneSrcIndex].targetInfo = (NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(2 * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+		m_pathInfo[iCloneSrcIndex].targetInfo = primary;
 
-#ifdef NV_DISPLAYCONFIG_PATH_INFO_VER3 
-				//pathInfo[0].sourceModeInfoCount = 1;
-#endif
-		//if (bNeedSwapPrimary)
-		//{
-		//	m_pathInfo[iCurPrimaryIndex].sourceModeInfo->bGDIPrimary = false;
-		//	m_pathInfo[iDestPrimaryIndex].sourceModeInfo->bGDIPrimary = true;
-		//}
+		m_pathInfo[iCloneSrcIndex].sourceModeInfo->position = NV_POSITION{ 1920,0 };
 
 		ret = NvAPI_DISP_SetDisplayConfig(2, m_pathInfo, 0);
-		}
+	}
 		
 	return NVAPI_OK;
 }
@@ -358,6 +294,12 @@ void DisplayCfg::ForceEdid()
 	}
 }
 
+DisplayCfg::~DisplayCfg()
+{
+	// Destruct all the malloc resource 
+	//for()
+	//	for()
+}
 eDisplayState DisplayCfg::CheckStatus()
 {
 	int totalDisplay = 0;

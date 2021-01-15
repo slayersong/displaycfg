@@ -3,7 +3,7 @@
 #include <windows.h>
 #include "targetver.h"
 #include "include\nvapi.h"
-#include "MonitorInfo.h"
+#include "displaycfg.h"
 #include <iostream>
 #include <memory>
 
@@ -15,9 +15,8 @@ void main()
 {
 	DisplayCfg cfg;
 	cfg.Init();
-	cfg.ForceEdid();
-	//cfg.Run(K2200_portIndex, 3);
-	//	cfg.SwapPrimary()
+	//cfg.ForceEdid();
+	cfg.Run(K2200_portIndex, 3);
 }
 
 int _111tmain(int argc, _TCHAR* argv[])

@@ -150,12 +150,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="include\nvapi.h" />
-    <ClInclude Include="MonitorInfo.h" />
+    <ClInclude Include="DisplayCfg.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="MonitorInfo.cpp" />
+    <ClCompile Include="DisplayCfg.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

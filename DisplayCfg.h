@@ -6,6 +6,14 @@
 #include <iterator>
 const int MAX_OUTPUT_NUM = 4; 
 using namespace std;
+/*****************
+	We store the portindex correspoding infomation in MonitorInfo
+	bPrimary: if is primary display
+	Pos: position for this display
+
+	iPathIdx: the index of m_pathinfo
+	iPathSubIdx: Default is 0, if > 0, it means pathinfo.targetcount > 1
+******************/
 struct MonitorInfo
 {
 	//localIndex and NV_GPU_CONNECTOR_TYPE
@@ -15,7 +23,7 @@ struct MonitorInfo
 	NV_EDID edid;
 	bool bPrimary;
 	NvU32 nDisplayID;
-	NvU16 iPathIdx;
+	NvU16 iPathIdx;  // Index for PathInfo
 	NvU16 iPathSubIdx; // Default is 0, if > 0, it means pathinfo.targetcount > 1
 };
 
@@ -30,8 +38,8 @@ enum eDisplayState
 	Only1Dis		// Only One display connected, wiil do nothing
 };
 
- //DVI  ----> Port 0 Copy DP1, Pos 1920 1080
- //DP next to DVI ----> port 1  Pos, 1920 1080
+ //DVI  ----> Port 0 Copy DP1, Pos 1920 0
+ //DP next to DVI ----> port 1  Pos, 1920 0
  //The last DP  ----> port 2 Primary,   Pos 0,0
 //const int K2200_portIndex[3] = { 2, 1, 0 };
 const int K2200_portIndex[3] = { 0, 1, 2 };
@@ -40,6 +48,7 @@ class DisplayCfg
 {
 public:
 	DisplayCfg() {}
+	~DisplayCfg();
 	NvAPI_Status Init();
 	NvAPI_Status GetDisplayID();
 	NvAPI_Status FetchPathInfo();
@@ -58,10 +67,17 @@ public:
 	NvAPI_Status Run(const int* portIndex,int portNum );
 private:
 	vector<MonitorInfo> m_disInfo;
+	/*m_port_mapinfo
+	Key:Port Index
+	Value: MonitorInfo
+	*/
 	map<int, MonitorInfo> m_port_mapinfo;
 
 	NvU32 m_pathCount = 0;
 	NV_DISPLAYCONFIG_PATH_INFO m_pathInfo[MAX_OUTPUT_NUM];
+	// Seems that we need consruct the info
+	NV_DISPLAYCONFIG_PATH_INFO m_ToSet_pathInfo[2];
+
 	NvU32 m_nDisplayIds = 0;
 	NvU32 m_physicalGpuCount = 0;
 	NV_GPU_DISPLAYIDS m_pDisplayIds[8];
