@@ -142,7 +142,8 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
 		}
 
 		// use the little one of m_pathinfo index 
-		iCloneSrcIndex = (m_port_mapinfo[portIndex[1]].iPathIdx, m_port_mapinfo[portIndex[2]].iPathIdx);
+		iCloneSrcIndex = std::fmin(m_port_mapinfo[portIndex[1]].iPathIdx, 
+			m_port_mapinfo[portIndex[2]].iPathIdx);
 		//iCloneSrcIndex = it->second.iPathIdx;
 		
 		if (bNeedSwapPrimary)
@@ -151,8 +152,8 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
 			m_pathInfo[iDestPrimaryIndex].sourceModeInfo->bGDIPrimary = true;
 
 			//iDestPrimaryIndex portIndex[0] 
-			m_pathInfo[portIndex[0]].sourceModeInfo->position = NV_POSITION{ 0,0 };
-			m_pathInfo[portIndex[1]].sourceModeInfo->position = NV_POSITION{ 1920,0 };
+			m_pathInfo[iCurPrimaryIndex].sourceModeInfo->position = NV_POSITION{ 0,0 };
+			m_pathInfo[iDestPrimaryIndex].sourceModeInfo->position = NV_POSITION{ 1920,0 };
 			/*NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO swapInfo;
 			swapInfo = *m_pathInfo[iCurPrimaryIndex].targetInfo[0].details;
 
@@ -184,7 +185,7 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
 		DisplayID = m_pathInfo[Indx].targetInfo[0].displayId;
 		if (m_pathInfo[Indx].targetInfo[0].details)
 		{
-			details = m_pathInfo[i].targetInfo[0].details;
+			details = m_pathInfo[Indx].targetInfo[0].details;
 		}
 
 		// Consctruct the clone info
