@@ -81,16 +81,131 @@ NvAPI_Status DisplayCfg::ForceEdidByPortIndex(int iPortIndex, const NV_EDID srcE
 	return NVAPI_OK;
 }
 
+NvAPI_Status DisplayCfg::Construct_primary(int portIndex[3])
+{
+	NvU32 uDisplayIDSrc, uDisplayIDDest;
+
+	memset(m_ToSet_pathInfo, 0, 2 * sizeof(NV_DISPLAYCONFIG_PATH_INFO));
+
+	/*****************************************************
+	****	1st Allocate resource *****************
+	1) version
+	2) sourceModeInfo
+	3) targetInfoCount and targetInfo
+	4) details
+ 	******************************************************/
+	for (NvU32 i = 0; i < 2; i++)
+	{
+		m_ToSet_pathInfo[i].version = NV_DISPLAYCONFIG_PATH_INFO_VER;
+		m_ToSet_pathInfo[i].sourceId = i;
+		m_ToSet_pathInfo[i].reserved_sourceId = i;
+
+		m_ToSet_pathInfo[i].sourceModeInfo = 
+			(NV_DISPLAYCONFIG_SOURCE_MODE_INFO*)malloc(m_ToSet_pathInfo[i].sourceModeInfoCount * sizeof(NV_DISPLAYCONFIG_SOURCE_MODE_INFO));
+
+		if (m_ToSet_pathInfo[i].sourceModeInfo == NULL)
+		{
+			return NVAPI_OUT_OF_MEMORY;
+		}
+		memset(m_ToSet_pathInfo[i].sourceModeInfo, 0, sizeof(NV_DISPLAYCONFIG_SOURCE_MODE_INFO));
+		m_ToSet_pathInfo[i].sourceModeInfoCount = 1;
+
+		m_ToSet_pathInfo[i].targetInfoCount = i + 1;
+
+		m_ToSet_pathInfo[i].targetInfo = 
+			(NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(m_ToSet_pathInfo[i].targetInfoCount * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+		
+		if (m_ToSet_pathInfo[i].targetInfo == NULL )//|| m_ToSet_pathInfo[1].targetInfo == NULL)
+		{
+			return NVAPI_OUT_OF_MEMORY;
+		}
+
+		memset(m_ToSet_pathInfo[i].targetInfo, 0, m_ToSet_pathInfo[i].targetInfoCount * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+
+		for (NvU32 j = 0; j < m_ToSet_pathInfo[i].targetInfoCount; j++)
+		{
+			m_ToSet_pathInfo[i].targetInfo[j].details = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
+			memset(m_ToSet_pathInfo[1].targetInfo[j].details, 0, sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
+			m_ToSet_pathInfo[i].targetInfo[j].details->version = NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO_VER;
+		}
+	}
+
+	/*****************************************************
+	****	2nd Step Fill sourceModeInfo *****************
+	******************************************************/
+	int iDestPrimaryIndex = -1;
+	int iCurPrimaryIndex = -1;
+	int ICloneSrc, ICloned = -1;
+
+	map<int, MonitorInfo>::iterator it = m_port_mapinfo.find(portIndex[0]);
+	if (it == m_port_mapinfo.end())
+	{
+		// This is only run the first time, if we have forced the EDID,
+		// We dno't need to check if the connetor is connected
+		cout << "Port " << it->first << " disconncected" << endl;
+		return NVAPI_ERROR;
+	}
+	iDestPrimaryIndex = it->second.iPathIdx;
+
+	// Find DP2 related pathinfo;
+	it = m_port_mapinfo.find(portIndex[1]);
+	if (it == m_port_mapinfo.end())
+	{
+		cout << "Clone Port " << it->first << " disconncected" << endl;
+		return NVAPI_ERROR;
+	}
+	ICloneSrc = it->second.iPathIdx;
+
+	it = m_port_mapinfo.find(portIndex[2]);
+	if (it == m_port_mapinfo.end())
+	{
+		cout << "Clone Port " << it->first << " disconncected" << endl;
+		return NVAPI_ERROR;
+	}
+	ICloned = m_port_mapinfo[portIndex[2]].iPathIdx;
+
+	m_ToSet_pathInfo[0].sourceModeInfo = m_pathInfo[iDestPrimaryIndex].sourceModeInfo;
+	m_ToSet_pathInfo[1].sourceModeInfo = m_pathInfo[iCloneSrcIndex].sourceModeInfo;
+	m_ToSet_pathInfo[0].sourceModeInfo->bGDIPrimary = true;
+	m_ToSet_pathInfo[1].sourceModeInfo->bGDIPrimary = false;
+	m_ToSet_pathInfo[0].sourceModeInfo->position = { 0,0 };
+	m_ToSet_pathInfo[1].sourceModeInfo->position = { 1920,0 };
+	
+	//ICloneSrc = m_port_mapinfo[portIndex[1]].iPathIdx;
+	//ICloned = m_port_mapinfo[portIndex[2]].iPathIdx;
+	
+	//NvU32 uDisplayIDSrc, uDisplayIDDest;
+	uDisplayIDSrc = m_pathInfo[ICloneSrc].targetInfo[0].displayId;
+
+	// Fill Targetinfo details and displayID
+	m_ToSet_pathInfo[0].targetInfo[0].displayId = m_pathInfo[iDestPrimaryIndex].targetInfo[0].displayId;
+	if (m_pathInfo[iDestPrimaryIndex].targetInfo[0].details)
+	{
+		*m_ToSet_pathInfo[0].targetInfo[0].details = *m_pathInfo[iDestPrimaryIndex].targetInfo[0].details;
+	}
+
+	*m_ToSet_pathInfo[1].targetInfo[0].details = *m_pathInfo[ICloneSrc].targetInfo[0].details;
+	m_ToSet_pathInfo[1].targetInfo[0].displayId = m_pathInfo[ICloneSrc].targetInfo[0].displayId;
+
+	*m_ToSet_pathInfo[1].targetInfo[1].details = *m_pathInfo[ICloned].targetInfo[0].details;
+	m_ToSet_pathInfo[1].targetInfo[1].displayId = m_pathInfo[ICloned].targetInfo[0].displayId;
+
+	return NVAPI_OK;
+}
+
+NvAPI_Status Construct_clone(NV_DISPLAYCONFIG_PATH_INFO pathinfo[2])
+{
+	return NVAPI_OK;
+}
+
 NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
 {
-	int i, j = 0;
 	bool bNeedSwapPrimary = false;
 	bool bNeedSwapPrimaryPos = false;
 	bool bNeedClone = false;
 	//Index in PathInfo
 	int iCurPrimaryIndex = -1;
 	int iDestPrimaryIndex = -1;
-	//Hard code  to  be test later;
 	int iClondeIndx;
 	NvAPI_Status ret;
 
@@ -108,14 +223,6 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
 
 		if (it->second.bPrimary == true )
 		{
-			// Port2 Already be primary
-
-			//iDestPrimaryIndex = iCurPrimaryIndex = it->second.iPathIdx;
-			//if (it->second.pos.x != 0)
-			//{
-			//	bNeedSwapPrimaryPos = true;
-			////	bNeedSwapPrimary = true;
-			//}
 		}
 		else
 		{
@@ -144,7 +251,6 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
 		// use the little one of m_pathinfo index 
 		iCloneSrcIndex = std::fmin(m_port_mapinfo[portIndex[1]].iPathIdx, 
 			m_port_mapinfo[portIndex[2]].iPathIdx);
-		//iCloneSrcIndex = it->second.iPathIdx;
 		
 		if (bNeedSwapPrimary)
 		{
@@ -154,26 +260,7 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
 			//iDestPrimaryIndex portIndex[0] 
 			m_pathInfo[iCurPrimaryIndex].sourceModeInfo->position = NV_POSITION{ 0,0 };
 			m_pathInfo[iDestPrimaryIndex].sourceModeInfo->position = NV_POSITION{ 1920,0 };
-			/*NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO swapInfo;
-			swapInfo = *m_pathInfo[iCurPrimaryIndex].targetInfo[0].details;
 
-			*m_pathInfo[iCurPrimaryIndex].targetInfo[0].details = 
-				*m_pathInfo[iDestPrimaryIndex].targetInfo[0].details;
-
-			*m_pathInfo[iDestPrimaryIndex].targetInfo[0].details = swapInfo;
-			
-			NvU32 swapDisplayID;
-
-			swapDisplayID = m_pathInfo[iCurPrimaryIndex].targetInfo[0].displayId;
-			m_pathInfo[iCurPrimaryIndex].targetInfo[0].displayId = m_pathInfo[iDestPrimaryIndex].targetInfo[0].displayId;
-			m_pathInfo[iDestPrimaryIndex].targetInfo[0].displayId = swapDisplayID;	
-
-			if (bNeedSwapPrimaryPos == true)
-			{
-
-				//m_pathInfo[portIndex[2]].sourceModeInfo->position = NV_POSITION{ 1920,0 };
-			}
-			*/
 		}
 		NvU32 DisplayID = 0;
 		NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO *details = NULL;
@@ -185,7 +272,7 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
 		DisplayID = m_pathInfo[Indx].targetInfo[0].displayId;
 		if (m_pathInfo[Indx].targetInfo[0].details)
 		{
-			details = m_pathInfo[Indx].targetInfo[0].details;
+			*details = *m_pathInfo[Indx].targetInfo[0].details;
 		}
 
 		// Consctruct the clone info
@@ -206,13 +293,22 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
 
 		ret = NvAPI_DISP_SetDisplayConfig(2, m_pathInfo, 0);
 	}
-		
+
 	return NVAPI_OK;
 }
 
 NvAPI_Status DisplayCfg::GetDisplayID()
 {
-	NvAPI_Status ret = NvAPI_GPU_GetConnectedDisplayIds(m_hPhysicalGpu[0], NULL, &m_nDisplayIds, 0);
+	NvU32 nIDs;
+	NvAPI_Status ret;
+	m_DisplayIDs[0].version = NV_GPU_DISPLAYIDS_VER1;
+	m_DisplayIDs[1].version = NV_GPU_DISPLAYIDS_VER1;
+	m_DisplayIDs[2].version = NV_GPU_DISPLAYIDS_VER1;
+
+	ret = NvAPI_GPU_GetAllDisplayIds(
+		m_hPhysicalGpu[0], m_DisplayIDs, &nIDs);
+
+	ret = NvAPI_GPU_GetConnectedDisplayIds(m_hPhysicalGpu[0], NULL, &m_nDisplayIds, 0);
 	if (ret != NVAPI_OK && m_nDisplayIds)
 	{
 		cout << "Cannot get connected DisplayIDs" << endl;
@@ -257,8 +353,8 @@ NvAPI_Status DisplayCfg::Init()
 		cout << "Cannot enumerate GPUs in the system..." <<endl;
 		return ret;
 	}
-	//ret = GetAllDisplayIDs();
-	ret = GetDisplayID();
+	ret = GetAllDisplayIDs();
+	//ret = GetDisplayID();
 	if (ret != NVAPI_OK)
 	{
 		cout << "GetDisplayID Failed" << endl;
@@ -301,20 +397,24 @@ DisplayCfg::~DisplayCfg()
 	//for()
 	//	for()
 }
-eDisplayState DisplayCfg::CheckStatus()
+
+int DisplayCfg::CheckStatus()
 {
 	int totalDisplay = 0;
+	int ret = 0;
 	for(int i = 0; i < m_pathCount; i++)
 	{
 		totalDisplay += m_pathInfo[i].targetInfoCount;
 	}
-	if (m_port_mapinfo.size() == 3)
+	
+	if(m_port_mapinfo.size() == 3)
 	{
-		// All connected
-
+		ret = DP1CONNECT | DP2CONNECT | DVICONNECT;
 	}
-	return DP2Ext_DVICopy;
-	//The right state should be (1,2 extend), 0 for clone mode;
+
+
+	return ret;
+	
 }
 
 NvAPI_Status DisplayCfg::GetPortIndex()

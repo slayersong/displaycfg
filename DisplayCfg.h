@@ -38,11 +38,18 @@ enum eDisplayState
 	Only1Dis		// Only One display connected, wiil do nothing
 };
 
+#define DP1CONNECT 0x00000001
+#define DP2CONNECT 0x00000002
+#define DVICONNECT 0x00000004
+
  //DVI  ----> Port 0 Copy DP1, Pos 1920 0
  //DP next to DVI ----> port 1  Pos, 1920 0
- //The last DP  ----> port 2 Primary,   Pos 0,0
+ //The last DP  ----> port 2 Primary,   Pos 0,0 bitmask DP2CONNECT
 //const int K2200_portIndex[3] = { 2, 1, 0 };
 const int K2200_portIndex[3] = { 0, 1, 2 };
+const int K2200_bitmask[3] = {DP1CONNECT, DP2CONNECT, DVICONNECT};
+// K2200_bitmask[2] = 
+//K2200_bitmask[2] = K2200_bitmask[2] =
 
 class DisplayCfg
 {
@@ -61,11 +68,17 @@ public:
 	NvAPI_Status GetPortIndex();
 	NvAPI_Status ForceEdidByPortIndex(int iPortIndex, const NV_EDID srcEdid);
 	NvAPI_Status GetAllDisplayIDs();
-	eDisplayState CheckStatus();
+	int CheckStatus();
 
 	void ForceEdid();
 	NvAPI_Status Run(const int* portIndex,int portNum );
+
+	NvAPI_Status Run_1(const int* portIndex, int portNum);
+	
 private:
+	int connectPort = 0;
+	NvAPI_Status Construct_primary(int portIndex[3]);
+	NvAPI_Status Construct_clone(NV_DISPLAYCONFIG_PATH_INFO pathinfo[2]);
 	vector<MonitorInfo> m_disInfo;
 	/*m_port_mapinfo
 	Key:Port Index
@@ -78,6 +91,7 @@ private:
 	// Seems that we need consruct the info
 	NV_DISPLAYCONFIG_PATH_INFO m_ToSet_pathInfo[2];
 
+	NV_GPU_DISPLAYIDS m_DisplayIDs[3];
 	NvU32 m_nDisplayIds = 0;
 	NvU32 m_physicalGpuCount = 0;
 	NV_GPU_DISPLAYIDS m_pDisplayIds[8];
