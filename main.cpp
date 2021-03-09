@@ -15,8 +15,10 @@ void main()
 {
 	DisplayCfg cfg;
 	cfg.Init();
-	cfg.ForceEdid();
-	cfg.Run(K2200_portIndex, 3);
+	//cfg.ForceEdid();
+	int status = cfg.CheckStatus();
+
+	cfg.Run(K2200_portIndex, status);
 }
 
 int _111tmain(int argc, _TCHAR* argv[])

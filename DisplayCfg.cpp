@@ -198,7 +198,7 @@ NvAPI_Status Construct_clone(NV_DISPLAYCONFIG_PATH_INFO pathinfo[2])
 	return NVAPI_OK;
 }
 
-NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
+NvAPI_Status DisplayCfg::Run(const int* portIndex, int ConnectStatus)
 {
 	bool bNeedSwapPrimary = false;
 	bool bNeedSwapPrimaryPos = false;
@@ -208,6 +208,29 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
 	int iDestPrimaryIndex = -1;
 	int iClondeIndx;
 	NvAPI_Status ret;
+
+	if (ConnectStatus == DP2CONNECT || ConnectStatus == DP1CONNECT || ConnectStatus == DVICONNECT)
+	{
+		//Only one monitor connected Do nothing
+		return NVAPI_OK;
+	}
+	else if (ConnectStatus == (DP2CONNECT | DP1CONNECT) || ConnectStatus == (DP1CONNECT | DVICONNECT))
+	{
+		//Swap the primary if needed
+	}
+
+	else if (ConnectStatus == (DP2CONNECT | DVICONNECT))
+	{
+		// we should avoid this thing happened, 
+		// the user should connected DP1 by default and DVI, not DP2 with DVI
+		// Clone or just swap the primary? 
+
+		//bNeedClone = true;
+	}
+	else
+	{
+		// can't get here for K2200
+	}
 
 	if (m_port_mapinfo.size() > 0)
 	{
@@ -247,10 +270,6 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
 			cout << "Clone Port " << it->first << " disconncected" << endl;
 			return NVAPI_ERROR;
 		}
-
-		// use the little one of m_pathinfo index 
-		iCloneSrcIndex = std::fmin(m_port_mapinfo[portIndex[1]].iPathIdx, 
-			m_port_mapinfo[portIndex[2]].iPathIdx);
 		
 		if (bNeedSwapPrimary)
 		{
@@ -260,39 +279,45 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int portNum)
 			//iDestPrimaryIndex portIndex[0] 
 			m_pathInfo[iCurPrimaryIndex].sourceModeInfo->position = NV_POSITION{ 0,0 };
 			m_pathInfo[iDestPrimaryIndex].sourceModeInfo->position = NV_POSITION{ 1920,0 };
-
 		}
-		NvU32 DisplayID = 0;
-		NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO *details = NULL;
-		details = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
-
-		// Store [2]DVI displayId to clone use
-		int Indx = m_port_mapinfo[portIndex[2]].iPathIdx;
-
-		DisplayID = m_pathInfo[Indx].targetInfo[0].displayId;
-		if (m_pathInfo[Indx].targetInfo[0].details)
+		if (bNeedClone) // m_port_mapinfo.haskey(portIndex[2]) && m_port_mapinfo.haskey[portIndex[1]]
 		{
-			*details = *m_pathInfo[Indx].targetInfo[0].details;
+			NvU32 DisplayID = 0;
+			NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO *details = NULL;
+			details = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
+
+			// use the little one of m_pathinfo index 
+			iCloneSrcIndex = std::fmin(m_port_mapinfo[portIndex[1]].iPathIdx,
+				m_port_mapinfo[portIndex[2]].iPathIdx);
+			// Store [2]DVI displayId to clone use
+			int Indx = m_port_mapinfo[portIndex[2]].iPathIdx;
+
+			DisplayID = m_pathInfo[Indx].targetInfo[0].displayId;
+			if (m_pathInfo[Indx].targetInfo[0].details)
+			{
+				*details = *m_pathInfo[Indx].targetInfo[0].details;
+			}
+
+			// Consctruct the clone info
+			m_pathInfo[iCloneSrcIndex].targetInfoCount = 2;
+			NV_DISPLAYCONFIG_PATH_TARGET_INFO* primary = (NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(m_pathInfo[iCloneSrcIndex].targetInfoCount * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+			memset(primary, 0, m_pathInfo[iCloneSrcIndex].targetInfoCount * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+			primary->displayId = m_pathInfo[iCloneSrcIndex].targetInfo[0].displayId;
+			primary->details = m_pathInfo[iCloneSrcIndex].targetInfo[0].details;
+			primary++;
+			primary->displayId = DisplayID;
+			primary->details = details;
+			primary--;
+			delete m_pathInfo[iCloneSrcIndex].targetInfo;
+			m_pathInfo[iCloneSrcIndex].targetInfo = (NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(2 * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+			m_pathInfo[iCloneSrcIndex].targetInfo = primary;
+
+			m_pathInfo[iCloneSrcIndex].sourceModeInfo->position = NV_POSITION{ 1920,0 };
+
+			ret = NvAPI_DISP_SetDisplayConfig(2, m_pathInfo, 0);
 		}
-
-		// Consctruct the clone info
-		m_pathInfo[iCloneSrcIndex].targetInfoCount = 2;
-		NV_DISPLAYCONFIG_PATH_TARGET_INFO* primary = (NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(m_pathInfo[iCloneSrcIndex].targetInfoCount * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
-		memset(primary, 0, m_pathInfo[iCloneSrcIndex].targetInfoCount * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
-		primary->displayId = m_pathInfo[iCloneSrcIndex].targetInfo[0].displayId;
-		primary->details = m_pathInfo[iCloneSrcIndex].targetInfo[0].details;
-		primary++;
-		primary->displayId = DisplayID;
-		primary->details = details;
-		primary--;
-		delete m_pathInfo[iCloneSrcIndex].targetInfo;
-		m_pathInfo[iCloneSrcIndex].targetInfo = (NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(2 * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
-		m_pathInfo[iCloneSrcIndex].targetInfo = primary;
-
-		m_pathInfo[iCloneSrcIndex].sourceModeInfo->position = NV_POSITION{ 1920,0 };
-
-		ret = NvAPI_DISP_SetDisplayConfig(2, m_pathInfo, 0);
 	}
+		
 
 	return NVAPI_OK;
 }
@@ -305,8 +330,13 @@ NvAPI_Status DisplayCfg::GetDisplayID()
 	m_DisplayIDs[1].version = NV_GPU_DISPLAYIDS_VER1;
 	m_DisplayIDs[2].version = NV_GPU_DISPLAYIDS_VER1;
 
-	ret = NvAPI_GPU_GetAllDisplayIds(
-		m_hPhysicalGpu[0], m_DisplayIDs, &nIDs);
+	//for (int i = 0; i < 8; i++)
+	//{
+	//	m_pDisplayIds[i].version = NV_GPU_DISPLAYIDS_VER1;
+	//}
+
+	//ret = NvAPI_GPU_GetAllDisplayIds(
+	//	m_hPhysicalGpu[0], m_pDisplayIds, &nIDs);
 
 	ret = NvAPI_GPU_GetConnectedDisplayIds(m_hPhysicalGpu[0], NULL, &m_nDisplayIds, 0);
 	if (ret != NVAPI_OK && m_nDisplayIds)
@@ -353,8 +383,8 @@ NvAPI_Status DisplayCfg::Init()
 		cout << "Cannot enumerate GPUs in the system..." <<endl;
 		return ret;
 	}
-	ret = GetAllDisplayIDs();
-	//ret = GetDisplayID();
+	//ret = GetAllDisplayIDs();
+	ret = GetDisplayID();
 	if (ret != NVAPI_OK)
 	{
 		cout << "GetDisplayID Failed" << endl;
@@ -400,21 +430,15 @@ DisplayCfg::~DisplayCfg()
 
 int DisplayCfg::CheckStatus()
 {
-	int totalDisplay = 0;
 	int ret = 0;
-	for(int i = 0; i < m_pathCount; i++)
-	{
-		totalDisplay += m_pathInfo[i].targetInfoCount;
-	}
-	
-	if(m_port_mapinfo.size() == 3)
-	{
-		ret = DP1CONNECT | DP2CONNECT | DVICONNECT;
-	}
 
+	map<int, MonitorInfo>::iterator it;
+	for (it = m_port_mapinfo.begin(); it != m_port_mapinfo.end(); it++)
+	{
+		ret |= K2200_bitmask[it->first];
+	}
 
 	return ret;
-	
 }
 
 NvAPI_Status DisplayCfg::GetPortIndex()
@@ -489,8 +513,8 @@ NvAPI_Status DisplayCfg::GetPortIndex()
 			info.edid.sizeofEDID = edid.sizeofEDID;
 			info.edid.offset = edid.offset;
 			memcpy(info.edid.EDID_Data, edid.EDID_Data, NV_EDID_DATA_SIZE);
-
-			/*FILE* fp = fopen("test.edid", "w+");
+/*
+			FILE* fp = fopen("test.edid", "w+");
 			//File test, just copy is OK
 			if (fp)
 			{

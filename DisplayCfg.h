@@ -45,11 +45,10 @@ enum eDisplayState
  //DVI  ----> Port 0 Copy DP1, Pos 1920 0
  //DP next to DVI ----> port 1  Pos, 1920 0
  //The last DP  ----> port 2 Primary,   Pos 0,0 bitmask DP2CONNECT
-//const int K2200_portIndex[3] = { 2, 1, 0 };
-const int K2200_portIndex[3] = { 0, 1, 2 };
-const int K2200_bitmask[3] = {DP1CONNECT, DP2CONNECT, DVICONNECT};
-// K2200_bitmask[2] = 
-//K2200_bitmask[2] = K2200_bitmask[2] =
+const int K2200_portIndex[3] = { 2, 1, 0 };
+//const int K2200_portIndex[3] = { 0, 1, 2 };
+const int K2200_bitmask[3] = { DVICONNECT,DP1CONNECT, DP2CONNECT};
+//you can get the bitmask as K2200_bitmask[K2200_portIndex[i]]
 
 class DisplayCfg
 {
@@ -71,11 +70,12 @@ public:
 	int CheckStatus();
 
 	void ForceEdid();
-	NvAPI_Status Run(const int* portIndex,int portNum );
+	NvAPI_Status Run(const int* portIndex,int ConnectStatus);
 
 	NvAPI_Status Run_1(const int* portIndex, int portNum);
 	
 private:
+	int m_connectStatus = 0;
 	int connectPort = 0;
 	NvAPI_Status Construct_primary(int portIndex[3]);
 	NvAPI_Status Construct_clone(NV_DISPLAYCONFIG_PATH_INFO pathinfo[2]);
