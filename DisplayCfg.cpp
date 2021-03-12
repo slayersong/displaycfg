@@ -229,10 +229,10 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int ConnectStatus)
 	}
 	else
 	{
-		// can't get here for K2200
+		
 	}
 
-	if (m_port_mapinfo.size() > 0)
+	if (m_port_mapinfo.size() > 1)
 	{
 		// portIndex[0] should be the primary display
 		map<int, MonitorInfo>::iterator it = m_port_mapinfo.find(portIndex[0]);
@@ -240,6 +240,9 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int ConnectStatus)
 		{
 			// This is only run the first time, if we have forced the EDID,
 			// We dno't need to check if the connetor is connected
+
+			// For the case ConnectStatus == (DP2CONNECT | DVICONNECT), we should avoid such action, customer should connect DP1 and DVI 
+			// By default for the first time
 			cout << "Port " << it->first << " disconncected" << endl;
 			return NVAPI_ERROR;
 		}
@@ -282,6 +285,7 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int ConnectStatus)
 		}
 		if (bNeedClone) // m_port_mapinfo.haskey(portIndex[2]) && m_port_mapinfo.haskey[portIndex[1]]
 		{
+			// for the clone case, only 3 monitor connected, we should do the clone process
 			NvU32 DisplayID = 0;
 			NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO *details = NULL;
 			details = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));

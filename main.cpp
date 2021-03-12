@@ -15,7 +15,7 @@ void main()
 {
 	DisplayCfg cfg;
 	cfg.Init();
-	//cfg.ForceEdid();
+	cfg.ForceEdid();
 	int status = cfg.CheckStatus();
 
 	cfg.Run(K2200_portIndex, status);
