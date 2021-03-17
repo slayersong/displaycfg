@@ -38,17 +38,18 @@ enum eDisplayState
 	Only1Dis		// Only One display connected, wiil do nothing
 };
 
-#define DP1CONNECT 0x00000001
-#define DP2CONNECT 0x00000002
-#define DVICONNECT 0x00000004
 
- //DVI  ----> Port 0 Copy DP1, Pos 1920 0
- //DP next to DVI ----> port 1  Pos, 1920 0
- //The last DP  ----> port 2 Primary,   Pos 0,0 bitmask DP2CONNECT
-const int K2200_portIndex[3] = { 2, 1, 0 };
+#define DVICONNECT 0x00000001 //Port 0
+#define DP1CONNECT 0x00000002 //Port 1
+#define DP2CONNECT 0x00000004 //Port 2
+
+ //Port 0 DVI  ---->  Copy DP1, Pos 1920 0
+ //port 1(the middle one) DP next to DVI ---->  Pos, 1920 0
+ //port 2(the outter one) The last DP  ----> Primary,   Pos 0,0 bitmask DP2CONNECT
+const int K2200_portIndex[3] = { 2, 1, 0 }; // Primary, extend, clone extend
 //const int K2200_portIndex[3] = { 0, 1, 2 };
-const int K2200_bitmask[3] = { DVICONNECT,DP1CONNECT, DP2CONNECT};
-//you can get the bitmask as K2200_bitmask[K2200_portIndex[i]]
+const int K2200_bitmask[3] = { DVICONNECT , DP1CONNECT, DP2CONNECT };
+// K2200_bitmask[K2200_portIndex[0]] -->K2200_bitmask[2] Port DP2
 
 class DisplayCfg
 {

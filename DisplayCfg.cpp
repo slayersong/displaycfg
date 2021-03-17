@@ -214,17 +214,17 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int ConnectStatus)
 		//Only one monitor connected Do nothing
 		return NVAPI_OK;
 	}
-	else if (ConnectStatus == (DP2CONNECT | DP1CONNECT) || ConnectStatus == (DP1CONNECT | DVICONNECT))
+	else if (ConnectStatus == (DP2CONNECT | DP1CONNECT) || ConnectStatus == (DP2CONNECT | DVICONNECT))
 	{
 		//Swap the primary if needed
 	}
 
-	else if (ConnectStatus == (DP2CONNECT | DVICONNECT))
+	else if (ConnectStatus == (DP1CONNECT | DVICONNECT))
 	{
 		// we should avoid this thing happened, 
-		// the user should connected DP1 by default and DVI, not DP2 with DVI
+		// the user should connected DP2(Port2) by default and DVI, not DP1 with DVI
 		// Clone or just swap the primary? 
-
+		return NVAPI_ERROR;
 		//bNeedClone = true;
 	}
 	else
@@ -243,30 +243,37 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int ConnectStatus)
 
 			// For the case ConnectStatus == (DP2CONNECT | DVICONNECT), we should avoid such action, customer should connect DP1 and DVI 
 			// By default for the first time
-			cout << "Port " << it->first << " disconncected" << endl;
-			return NVAPI_ERROR;
-		}
-
-		if (it->second.bPrimary == true )
-		{
+			cout << "Port " << portIndex[0] << " disconncected" << endl;
+			//return NVAPI_ERROR;
 		}
 		else
-		{
-			bNeedSwapPrimary = true;
-			iDestPrimaryIndex = it->second.iPathIdx;
-			for (it = m_port_mapinfo.begin(); it!=m_port_mapinfo.end(); it++)
+		{ 
+			if (it->second.bPrimary == true )
 			{
-				if (it->second.bPrimary == true)// && it->second.iPathIdx != iDestPrimaryIndex)
-					iCurPrimaryIndex = it->second.iPathIdx;
+			}
+			else
+			{
+				bNeedSwapPrimary = true;
+				iDestPrimaryIndex = it->second.iPathIdx;
+				for (it = m_port_mapinfo.begin(); it!=m_port_mapinfo.end(); it++)
+				{
+					if (it->second.bPrimary == true)// && it->second.iPathIdx != iDestPrimaryIndex)
+						iCurPrimaryIndex = it->second.iPathIdx;
+				}
 			}
 		}
-		
+
 		if (m_pathCount == 3)
 		{
 			bNeedClone = true;
 		}
 
-		//Find the DP2 Port pathinfo index;
+		//Find the DP1 Port pathinfo index;
+		/*
+		Port 0 ---DVI
+		Port 1 -- DP1 clone src
+		Port 2 -- DP2 Primary
+		*/
 		it = m_port_mapinfo.find(portIndex[1]);
 		if (it == m_port_mapinfo.end())
 		{
@@ -274,7 +281,7 @@ NvAPI_Status DisplayCfg::Run(const int* portIndex, int ConnectStatus)
 			return NVAPI_ERROR;
 		}
 		
-		if (bNeedSwapPrimary)
+		if (bNeedSwapPrimary && iCurPrimaryIndex != -1 && iDestPrimaryIndex != -1)
 		{
 			m_pathInfo[iCurPrimaryIndex].sourceModeInfo->bGDIPrimary = false;
 			m_pathInfo[iDestPrimaryIndex].sourceModeInfo->bGDIPrimary = true;
@@ -416,9 +423,21 @@ void DisplayCfg::ForceEdid()
 {
 	//cout << "ForceEdid to handle hot plug" << endl;
 	
-	NvAPI_Status ret = ForceEdidByPortIndex(0, m_port_mapinfo[0].edid);
-	ret = ForceEdidByPortIndex(1, m_port_mapinfo[1].edid);
-	ret = ForceEdidByPortIndex(2, m_port_mapinfo[2].edid);
+	NvAPI_Status ret;
+	if (m_port_mapinfo.find(0) != m_port_mapinfo.end()) // can also check status | K2200_bitmask[it->first]
+	{
+		ret = ForceEdidByPortIndex(0, m_port_mapinfo[0].edid);
+	}
+	if (m_port_mapinfo.find(1) != m_port_mapinfo.end())
+	{
+		ret = ForceEdidByPortIndex(1, m_port_mapinfo[1].edid);
+	}
+
+	if (m_port_mapinfo.find(2) != m_port_mapinfo.end())
+	{
+		ret = ForceEdidByPortIndex(2, m_port_mapinfo[2].edid);
+	}
+	
 	if (ret == NVAPI_OK)
 	{
 		cout << "Successful Force EDID " << endl;
