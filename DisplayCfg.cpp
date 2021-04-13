@@ -81,11 +81,11 @@ NvAPI_Status DisplayCfg::ForceEdidByPortIndex(int iPortIndex, const NV_EDID srcE
 	return NVAPI_OK;
 }
 
-NvAPI_Status DisplayCfg::Construct_primary(int portIndex[3])
+NvAPI_Status DisplayCfg::Construct_primary(const int portIndex[3])
 {
 	NvU32 uDisplayIDSrc, uDisplayIDDest;
 
-	memset(m_ToSet_pathInfo, 0, 2 * sizeof(NV_DISPLAYCONFIG_PATH_INFO));
+	//memset(m_ToSet_pathInfo, 0, 2 * sizeof(NV_DISPLAYCONFIG_PATH_INFO));
 
 	/*****************************************************
 	****	1st Allocate resource *****************
@@ -94,7 +94,7 @@ NvAPI_Status DisplayCfg::Construct_primary(int portIndex[3])
 	3) targetInfoCount and targetInfo
 	4) details
  	******************************************************/
-	for (NvU32 i = 0; i < 2; i++)
+	/*	for (NvU32 i = 0; i < 2; i++)
 	{
 		m_ToSet_pathInfo[i].version = NV_DISPLAYCONFIG_PATH_INFO_VER;
 		m_ToSet_pathInfo[i].sourceId = i;
@@ -125,16 +125,16 @@ NvAPI_Status DisplayCfg::Construct_primary(int portIndex[3])
 		for (NvU32 j = 0; j < m_ToSet_pathInfo[i].targetInfoCount; j++)
 		{
 			m_ToSet_pathInfo[i].targetInfo[j].details = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
-			memset(m_ToSet_pathInfo[1].targetInfo[j].details, 0, sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
+			memset(m_ToSet_pathInfo[i].targetInfo[j].details, 0, sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
 			m_ToSet_pathInfo[i].targetInfo[j].details->version = NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO_VER;
 		}
-	}
+	}*/
 
 	/*****************************************************
 	****	2nd Step Fill sourceModeInfo *****************
 	******************************************************/
 	int iDestPrimaryIndex = -1;
-	int iCurPrimaryIndex = -1;
+	//int iCurPrimaryIndex = -1;
 	int ICloneSrc, ICloned = -1;
 
 	map<int, MonitorInfo>::iterator it = m_port_mapinfo.find(portIndex[0]);
@@ -165,11 +165,11 @@ NvAPI_Status DisplayCfg::Construct_primary(int portIndex[3])
 	ICloned = m_port_mapinfo[portIndex[2]].iPathIdx;
 
 	m_ToSet_pathInfo[0].sourceModeInfo = m_pathInfo[iDestPrimaryIndex].sourceModeInfo;
-	m_ToSet_pathInfo[1].sourceModeInfo = m_pathInfo[iCloneSrcIndex].sourceModeInfo;
+	m_ToSet_pathInfo[1].sourceModeInfo = m_pathInfo[ICloneSrc].sourceModeInfo;
 	m_ToSet_pathInfo[0].sourceModeInfo->bGDIPrimary = true;
 	m_ToSet_pathInfo[1].sourceModeInfo->bGDIPrimary = false;
 	m_ToSet_pathInfo[0].sourceModeInfo->position = { 0,0 };
-	m_ToSet_pathInfo[1].sourceModeInfo->position = { 1920,0 };
+	m_ToSet_pathInfo[1].sourceModeInfo->position = { 1920,0 }; // The resolution need read from file
 	
 	//ICloneSrc = m_port_mapinfo[portIndex[1]].iPathIdx;
 	//ICloned = m_port_mapinfo[portIndex[2]].iPathIdx;
@@ -184,13 +184,29 @@ NvAPI_Status DisplayCfg::Construct_primary(int portIndex[3])
 		*m_ToSet_pathInfo[0].targetInfo[0].details = *m_pathInfo[iDestPrimaryIndex].targetInfo[0].details;
 	}
 
+	//Construct clone path m_ToSet_pathInfo[1]
+	m_ToSet_pathInfo[1].targetInfoCount = 2;
+	delete m_ToSet_pathInfo[1].targetInfo;
+
+	m_ToSet_pathInfo[1].targetInfo =
+		(NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(m_ToSet_pathInfo[1].targetInfoCount * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+	memset(m_ToSet_pathInfo[1].targetInfo, 0, m_ToSet_pathInfo[1].targetInfoCount * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+
+	m_ToSet_pathInfo[1].targetInfo[0].details = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
+	m_ToSet_pathInfo[1].targetInfo[1].details = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
+	memset(m_ToSet_pathInfo[1].targetInfo[0].details, 0, sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
+	memset(m_ToSet_pathInfo[1].targetInfo[1].details, 0, sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
+
+
+	m_ToSet_pathInfo[1].targetInfo[0].details = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
 	*m_ToSet_pathInfo[1].targetInfo[0].details = *m_pathInfo[ICloneSrc].targetInfo[0].details;
 	m_ToSet_pathInfo[1].targetInfo[0].displayId = m_pathInfo[ICloneSrc].targetInfo[0].displayId;
 
 	*m_ToSet_pathInfo[1].targetInfo[1].details = *m_pathInfo[ICloned].targetInfo[0].details;
 	m_ToSet_pathInfo[1].targetInfo[1].displayId = m_pathInfo[ICloned].targetInfo[0].displayId;
 
-	return NVAPI_OK;
+	NvAPI_Status ret = NvAPI_DISP_SetDisplayConfig(2, m_ToSet_pathInfo, 0);
+	return ret;
 }
 
 NvAPI_Status Construct_clone(NV_DISPLAYCONFIG_PATH_INFO pathinfo[2])
@@ -578,12 +594,19 @@ NvAPI_Status DisplayCfg::FetchPathInfo()
 		return ret;
 
 	memset(m_pathInfo, 0, m_pathCount * sizeof(NV_DISPLAYCONFIG_PATH_INFO));
+	memset(m_ToSet_pathInfo, 0, m_pathCount * sizeof(NV_DISPLAYCONFIG_PATH_INFO));
+
 	for (NvU32 i = 0; i < m_pathCount; i++)
 	{
 		m_pathInfo[i].version = NV_DISPLAYCONFIG_PATH_INFO_VER;
+		m_ToSet_pathInfo[i].version = NV_DISPLAYCONFIG_PATH_INFO_VER;
 	}
 	
 	ret = NvAPI_DISP_GetDisplayConfig(&m_pathCount, m_pathInfo);
+	if (ret != NVAPI_OK)
+		return ret;
+
+	ret = NvAPI_DISP_GetDisplayConfig(&m_pathCount, m_ToSet_pathInfo);
 	if (ret != NVAPI_OK)
 		return ret;
 
@@ -595,37 +618,56 @@ NvAPI_Status DisplayCfg::FetchPathInfo()
 		{
 			//m_pathInfo[i].sourceModeInfo = new NV_DISPLAYCONFIG_SOURCE_MODE_INFO;
 			m_pathInfo[i].sourceModeInfo = (NV_DISPLAYCONFIG_SOURCE_MODE_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_SOURCE_MODE_INFO));
+			m_ToSet_pathInfo[i].sourceModeInfo = (NV_DISPLAYCONFIG_SOURCE_MODE_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_SOURCE_MODE_INFO));
 		}
 		else
 		{
-
 #ifdef NV_DISPLAYCONFIG_PATH_INFO_VER3
 			m_pathInfo[i].sourceModeInfo = (NV_DISPLAYCONFIG_SOURCE_MODE_INFO*)malloc(m_pathInfo[i].sourceModeInfoCount * sizeof(NV_DISPLAYCONFIG_SOURCE_MODE_INFO));
+			m_ToSet_pathInfo[i].sourceModeInfo = (NV_DISPLAYCONFIG_SOURCE_MODE_INFO*)malloc(m_ToSet_pathInfo[i].sourceModeInfoCount * sizeof(NV_DISPLAYCONFIG_SOURCE_MODE_INFO));
 #endif
 		}
-		if (m_pathInfo[i].sourceModeInfo == NULL)
+		if (m_pathInfo[i].sourceModeInfo == NULL || m_ToSet_pathInfo[i].sourceModeInfo == NULL)
 		{
 			return NVAPI_OUT_OF_MEMORY;
 		}
+
 		memset(m_pathInfo[i].sourceModeInfo, 0, sizeof(NV_DISPLAYCONFIG_SOURCE_MODE_INFO));
+		memset(m_ToSet_pathInfo[i].sourceModeInfo, 0, sizeof(NV_DISPLAYCONFIG_SOURCE_MODE_INFO));
 
 		// Allocate the target array
 		m_pathInfo[i].targetInfo = (NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(m_pathInfo[i].targetInfoCount * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
-		if (m_pathInfo[i].targetInfo == NULL)
+		m_ToSet_pathInfo[i].targetInfo = (NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(m_ToSet_pathInfo[i].targetInfoCount * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+
+		if (m_pathInfo[i].targetInfo == NULL || m_ToSet_pathInfo[i].targetInfo == NULL)
 		{
 			return NVAPI_OUT_OF_MEMORY;
 		}
 		// Allocate the target details
 		memset(m_pathInfo[i].targetInfo, 0, m_pathInfo[i].targetInfoCount * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+		memset(m_ToSet_pathInfo[i].targetInfo, 0, m_ToSet_pathInfo[i].targetInfoCount * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
+
 		for (NvU32 j = 0; j < m_pathInfo[i].targetInfoCount; j++)
 		{
 			m_pathInfo[i].targetInfo[j].details = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
 			memset(m_pathInfo[i].targetInfo[j].details, 0, sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
 			m_pathInfo[i].targetInfo[j].details->version = NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO_VER;
 		}
+
+		for (NvU32 j = 0; j < m_ToSet_pathInfo[i].targetInfoCount; j++)
+		{
+			m_ToSet_pathInfo[i].targetInfo[j].details = (NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO*)malloc(sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
+			memset(m_ToSet_pathInfo[i].targetInfo[j].details, 0, sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
+			m_ToSet_pathInfo[i].targetInfo[j].details->version = NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO_VER;
+		}
 	}
 
+	
 	ret = NvAPI_DISP_GetDisplayConfig(&m_pathCount, m_pathInfo);
+	if (ret != NVAPI_OK)
+		return ret;
+
+	ret = NvAPI_DISP_GetDisplayConfig(&m_pathCount, m_ToSet_pathInfo);
 	if (ret != NVAPI_OK)
 		return ret;
 

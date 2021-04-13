@@ -17,10 +17,11 @@ void main()
 	cfg.Init();
 	int status = cfg.CheckStatus();
 	cfg.ForceEdid();
-	cfg.Run(K2200_portIndex, status);
+	//cfg.Run(K2200_portIndex, status);
+	cfg.Construct_primary(K2200_portIndex);
 }
 
-int _111tmain(int argc, _TCHAR* argv[])
+int fffmain(int argc, _TCHAR* argv[])
 {
 	NvAPI_Status ret = NVAPI_OK;
 	ret = NvAPI_Initialize();
@@ -266,7 +267,6 @@ NvAPI_Status SetMode(void)
 		printf("\nActivating clone mode display on system");
 		if (pathInfo[0].version == NV_DISPLAYCONFIG_PATH_INFO_VER1 || pathInfo[0].version == NV_DISPLAYCONFIG_PATH_INFO_VER2)
 		{
-
 			pathInfo[0].targetInfoCount = 2;
 			NV_DISPLAYCONFIG_PATH_TARGET_INFO* primary = (NV_DISPLAYCONFIG_PATH_TARGET_INFO*)malloc(pathInfo[0].targetInfoCount * sizeof(NV_DISPLAYCONFIG_PATH_TARGET_INFO));
 			printf(".");

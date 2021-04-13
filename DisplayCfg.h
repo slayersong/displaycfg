@@ -74,11 +74,11 @@ public:
 	NvAPI_Status Run(const int* portIndex,int ConnectStatus);
 
 	NvAPI_Status Run_1(const int* portIndex, int portNum);
-	
+	NvAPI_Status Construct_primary(const int portIndex[3]);
 private:
 	int m_connectStatus = 0;
 	int connectPort = 0;
-	NvAPI_Status Construct_primary(int portIndex[3]);
+	
 	NvAPI_Status Construct_clone(NV_DISPLAYCONFIG_PATH_INFO pathinfo[2]);
 	vector<MonitorInfo> m_disInfo;
 	/*m_port_mapinfo
@@ -90,7 +90,7 @@ private:
 	NvU32 m_pathCount = 0;
 	NV_DISPLAYCONFIG_PATH_INFO m_pathInfo[MAX_OUTPUT_NUM];
 	// Seems that we need consruct the info
-	NV_DISPLAYCONFIG_PATH_INFO m_ToSet_pathInfo[2];
+	NV_DISPLAYCONFIG_PATH_INFO m_ToSet_pathInfo[MAX_OUTPUT_NUM];
 
 	NV_GPU_DISPLAYIDS m_DisplayIDs[3];
 	NvU32 m_nDisplayIds = 0;
