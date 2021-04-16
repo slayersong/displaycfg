@@ -61,7 +61,7 @@ public:
 	NvAPI_Status FetchPathInfo();
 	int GetPrimaryInfoIndex();
 	//checkDisplayPos();
-
+	bool bNeedConstruct(const int portIndex[3]);
 	bool SwapPrimary(int srcLoc, int destLoc);
 	bool CloneExtendDisplay(int srcLoc, int destLoc);
 	void ShowCurrentDisplayConfig();
@@ -73,13 +73,11 @@ public:
 	void ForceEdid();
 	NvAPI_Status Run(const int* portIndex,int ConnectStatus);
 
-	NvAPI_Status Run_1(const int* portIndex, int portNum);
-	NvAPI_Status Construct_primary(const int portIndex[3]);
+	NvAPI_Status Construct_primary(const int portIndex[3], int ConnectStatus);
 private:
 	int m_connectStatus = 0;
 	int connectPort = 0;
 	
-	NvAPI_Status Construct_clone(NV_DISPLAYCONFIG_PATH_INFO pathinfo[2]);
 	vector<MonitorInfo> m_disInfo;
 	/*m_port_mapinfo
 	Key:Port Index

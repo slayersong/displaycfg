@@ -18,7 +18,7 @@ void main()
 	int status = cfg.CheckStatus();
 	cfg.ForceEdid();
 	//cfg.Run(K2200_portIndex, status);
-	cfg.Construct_primary(K2200_portIndex);
+	cfg.Construct_primary(K2200_portIndex, status);
 }
 
 int fffmain(int argc, _TCHAR* argv[])

@@ -81,10 +81,39 @@ NvAPI_Status DisplayCfg::ForceEdidByPortIndex(int iPortIndex, const NV_EDID srcE
 	return NVAPI_OK;
 }
 
-NvAPI_Status DisplayCfg::Construct_primary(const int portIndex[3])
+NvAPI_Status DisplayCfg::Construct_primary(const int portIndex[3], int ConnectStatus)
 {
 	NvU32 uDisplayIDSrc, uDisplayIDDest;
 
+	if (ConnectStatus == DP2CONNECT || ConnectStatus == DP1CONNECT || ConnectStatus == DVICONNECT)
+	{
+		//Only one monitor connected Do nothing
+		return NVAPI_OK;
+	}
+	else if (ConnectStatus == (DP2CONNECT | DP1CONNECT) || ConnectStatus == (DP2CONNECT | DVICONNECT))
+	{
+		//Swap the primary if needed
+	}
+
+	else if (ConnectStatus == (DP1CONNECT | DVICONNECT))
+	{
+		// we should avoid this thing happened, 
+		// the user should connected DP2(Port2) by default and DVI, not DP1 with DVI
+		// Clone or just swap the primary? 
+		return NVAPI_ERROR;
+		//bNeedClone = true;
+	}
+	else
+	{
+
+	}
+
+	if (bNeedConstruct(portIndex) == false)
+	{
+		cout << "No need to construct" << endl;
+		return NVAPI_OK;
+	}
+		
 	//memset(m_ToSet_pathInfo, 0, 2 * sizeof(NV_DISPLAYCONFIG_PATH_INFO));
 
 	/*****************************************************
@@ -209,11 +238,38 @@ NvAPI_Status DisplayCfg::Construct_primary(const int portIndex[3])
 	return ret;
 }
 
-NvAPI_Status Construct_clone(NV_DISPLAYCONFIG_PATH_INFO pathinfo[2])
+bool DisplayCfg::bNeedConstruct(const int portIndex[3])
 {
-	return NVAPI_OK;
-}
+	bool bNeedSwapPrimary = false;
+	bool bNeedClone = false;
 
+	if (m_port_mapinfo.size() > 1)
+	{
+		// portIndex[0] should be the primary display
+		map<int, MonitorInfo>::iterator it = m_port_mapinfo.find(portIndex[0]);
+		if (it == m_port_mapinfo.end())
+		{
+			cout << "Port " << portIndex[0] << " disconncected" << endl;
+			return false;
+		}
+		else
+		{
+			if (it->second.bPrimary == true)
+			{
+			}
+			else
+			{
+				bNeedSwapPrimary = true;
+			}
+		}
+
+		if (m_pathCount == 3)
+		{
+			bNeedClone = true;
+		}
+	}
+	return (bNeedSwapPrimary || bNeedClone);
+}
 NvAPI_Status DisplayCfg::Run(const int* portIndex, int ConnectStatus)
 {
 	bool bNeedSwapPrimary = false;
