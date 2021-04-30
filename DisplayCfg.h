@@ -101,4 +101,7 @@ private:
 	//Src index in PathInfo;
 	NvU16 iCloneSrcIndex;
 	NvU16 iCondeDstIndex;
+
+	bool bNeedSwapPrimary = false;
+	bool bNeedClone = false;
 };
