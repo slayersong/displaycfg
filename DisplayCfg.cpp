@@ -85,17 +85,23 @@ NvAPI_Status DisplayCfg::Construct_primary(const int portIndex[3], int ConnectSt
 {
 	NvU32 uDisplayIDSrc, uDisplayIDDest;
 
+    if (bNeedConstruct(portIndex,ConnectStatus) == false)
+    {
+        cout << "No need to construct" << endl;
+        return NVAPI_OK;
+    }
+/*
 	if (ConnectStatus == DP2CONNECT || ConnectStatus == DP1CONNECT || ConnectStatus == DVICONNECT)
 	{
 		//Only one monitor connected Do nothing
 		return NVAPI_OK;
 	}
-	else if (ConnectStatus == (DP2CONNECT | DP1CONNECT) || ConnectStatus == (DP2CONNECT | DVICONNECT))
+    else if (ConnectStatus == (DP2CONNECT | DP1CONNECT) || ConnectStatus == (DP1CONNECT | DVICONNECT))
 	{
 		//Swap the primary if needed
 	}
 
-	else if (ConnectStatus == (DP1CONNECT | DVICONNECT))
+    else if (ConnectStatus == (DP2CONNECT | DVICONNECT))
 	{
 		// we should avoid this thing happened, 
 		// the user should connected DP2(Port2) by default and DVI, not DP1 with DVI
@@ -106,13 +112,9 @@ NvAPI_Status DisplayCfg::Construct_primary(const int portIndex[3], int ConnectSt
 	else
 	{
 
-	}
+    }*/
 
-	if (bNeedConstruct(portIndex) == false)
-	{
-		cout << "No need to construct" << endl;
-		return NVAPI_OK;
-	}
+
 		
 	//memset(m_ToSet_pathInfo, 0, 2 * sizeof(NV_DISPLAYCONFIG_PATH_INFO));
 
@@ -166,53 +168,63 @@ NvAPI_Status DisplayCfg::Construct_primary(const int portIndex[3], int ConnectSt
 	//int iCurPrimaryIndex = -1;
 	int ICloneSrc, ICloned = -1;
 	int ISingleSrc = -1;
+    map<int, MonitorInfo>::iterator it ;
 
-	map<int, MonitorInfo>::iterator it = m_port_mapinfo.find(portIndex[0]);
-	if (it == m_port_mapinfo.end())
-	{
-		// This is only run the first time, if we have forced the EDID,
-		// We dno't need to check if the connetor is connected
-		cout << "Port " << it->first << " disconncected" << endl;
-		return NVAPI_ERROR;
-	}
-	iDestPrimaryIndex = it->second.iPathIdx;
-	ICloneSrc = iDestPrimaryIndex;
+    if(bNeedSwapPrimary)
+    {
+        it= m_port_mapinfo.find(portIndex[0]);
+        if (it != m_port_mapinfo.end())
+        {
+            iDestPrimaryIndex = it->second.iPathIdx;
+        }
+        else
+        {
+            it = m_port_mapinfo.find(portIndex[2]);
+            if (it != m_port_mapinfo.end())
+                iDestPrimaryIndex = it->second.iPathIdx;
+        }
 
-	// Same as Primary;
-	it = m_port_mapinfo.find(portIndex[1]);
-	if (it == m_port_mapinfo.end())
-	{
-		cout << "Clone Port " << it->first << " disconncected" << endl;
-		return NVAPI_ERROR;
-	}
-	ISingleSrc = it->second.iPathIdx; // it->second.iPathIdx;
+    }
+
+    it = m_port_mapinfo.find(portIndex[1]);
+    if (it != m_port_mapinfo.end())
+    {
+        ISingleSrc = it->second.iPathIdx; // it->second.iPathIdx;
+    }
 
 	if (bNeedClone)
 	{
+        it= m_port_mapinfo.find(portIndex[0]);
+        if (it != m_port_mapinfo.end())
+        {
+            ICloneSrc = it->second.iPathIdx;
+            iDestPrimaryIndex = ICloneSrc;
+        }
+
 		it = m_port_mapinfo.find(portIndex[2]);
-		if (it == m_port_mapinfo.end())
+        if (it != m_port_mapinfo.end())
 		{
-			cout << "Clone Port " << it->first << " disconncected" << endl;
-			return NVAPI_ERROR;
+            ICloned = m_port_mapinfo[portIndex[2]].iPathIdx;
 		}
-		ICloned = m_port_mapinfo[portIndex[2]].iPathIdx;
+
+        //NvU32 uDisplayIDSrc, uDisplayIDDest;
+        uDisplayIDSrc = m_pathInfo[ICloneSrc].targetInfo[0].displayId;
 	}
 
-	m_ToSet_pathInfo[0].sourceModeInfo = m_pathInfo[iDestPrimaryIndex].sourceModeInfo;
-	m_ToSet_pathInfo[1].sourceModeInfo = m_pathInfo[ISingleSrc].sourceModeInfo;
-	m_ToSet_pathInfo[0].sourceModeInfo->bGDIPrimary = true;
-	m_ToSet_pathInfo[1].sourceModeInfo->bGDIPrimary = false;
-	m_ToSet_pathInfo[0].sourceModeInfo->position = { 0,0 };
-	m_ToSet_pathInfo[1].sourceModeInfo->position = { 1920,0 }; // The resolution need read from file or 
-	// m_pathInfo[1].sourceModeInfo->resolution.width;  
-													
-	
-	//ICloneSrc = m_port_mapinfo[portIndex[1]].iPathIdx;
-	//ICloned = m_port_mapinfo[portIndex[2]].iPathIdx;
-	
-	//NvU32 uDisplayIDSrc, uDisplayIDDest;
-	uDisplayIDSrc = m_pathInfo[ICloneSrc].targetInfo[0].displayId;
 
+	m_ToSet_pathInfo[0].sourceModeInfo = m_pathInfo[iDestPrimaryIndex].sourceModeInfo;
+	m_ToSet_pathInfo[0].sourceModeInfo->bGDIPrimary = true;
+	m_ToSet_pathInfo[0].sourceModeInfo->position = { 0,0 };
+
+    if (ISingleSrc != -1)
+    {
+        m_ToSet_pathInfo[1].sourceModeInfo = m_pathInfo[ISingleSrc].sourceModeInfo;
+        m_ToSet_pathInfo[1].sourceModeInfo->bGDIPrimary = false;
+
+        m_ToSet_pathInfo[1].sourceModeInfo->position = { 1920,0 }; // The resolution need read from file or
+    }
+
+	
 	//Construct clone path m_ToSet_pathInfo[1]
 	if (bNeedClone)
 	{
@@ -248,21 +260,65 @@ NvAPI_Status DisplayCfg::Construct_primary(const int portIndex[3], int ConnectSt
 	memset(m_ToSet_pathInfo[1].targetInfo[0].details, 0, sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));
 	memset(m_ToSet_pathInfo[1].targetInfo[1].details, 0, sizeof(NV_DISPLAYCONFIG_PATH_ADVANCED_TARGET_INFO));*/
 
-	
-	*m_ToSet_pathInfo[1].targetInfo[0].details = *m_pathInfo[ISingleSrc].targetInfo[0].details;
-	m_ToSet_pathInfo[1].targetInfo[0].displayId = m_pathInfo[ISingleSrc].targetInfo[0].displayId;
+    if(ISingleSrc != -1)
+    {
+        *m_ToSet_pathInfo[1].targetInfo[0].details = *m_pathInfo[ISingleSrc].targetInfo[0].details;
+        m_ToSet_pathInfo[1].targetInfo[0].displayId = m_pathInfo[ISingleSrc].targetInfo[0].displayId;
+    }
+
 	if (bNeedClone)
 	{
 		*m_ToSet_pathInfo[0].targetInfo[1].details = *m_pathInfo[ICloned].targetInfo[0].details;
 		m_ToSet_pathInfo[0].targetInfo[1].displayId = m_pathInfo[ICloned].targetInfo[0].displayId;
 	}
+    NvAPI_Status ret;
+    if(ISingleSrc != -1)
+        ret = NvAPI_DISP_SetDisplayConfig(2, m_ToSet_pathInfo, 0);
+    else
+        ret = NvAPI_DISP_SetDisplayConfig(1, m_ToSet_pathInfo, 0);
 
-	NvAPI_Status ret = NvAPI_DISP_SetDisplayConfig(2, m_ToSet_pathInfo, 0);
 	return ret;
 }
 
-bool DisplayCfg::bNeedConstruct(const int portIndex[3])
+bool DisplayCfg::bNeedConstruct(const int* portIndex, int ConnectStatus)
 {
+
+    map<int, MonitorInfo>::iterator it;
+    if (ConnectStatus == DP2CONNECT || ConnectStatus == DP1CONNECT || ConnectStatus == DVICONNECT)
+    {
+        //Only one monitor connected Do nothing
+        return false;
+    }
+    else if (ConnectStatus == (DP2CONNECT | DP1CONNECT) )
+    {
+        //Swap the primary if needed
+        it = m_port_mapinfo.find(portIndex[0]);
+        if(it != m_port_mapinfo.end() && !it->second.bPrimary)
+            bNeedSwapPrimary = true;
+    }
+    else if(ConnectStatus == (DP1CONNECT | DVICONNECT))
+    {
+        it = m_port_mapinfo.find(portIndex[2]);
+        if(it != m_port_mapinfo.end() && !it->second.bPrimary)
+            bNeedSwapPrimary = true;
+    }
+    else if (ConnectStatus == (DP2CONNECT | DVICONNECT))
+    {
+        if(m_port_mapinfo.size() == 2)
+            bNeedClone = true;
+    }
+
+    if ( m_port_mapinfo.size() == 3)
+    {
+        bNeedClone = true;
+        //ignore the portindx[2], construct as portindex[0]
+        it = m_port_mapinfo.find(portIndex[0]);
+        if(it != m_port_mapinfo.end() && !it->second.bPrimary)
+            bNeedSwapPrimary = true;
+    }
+
+    return (bNeedSwapPrimary || bNeedClone);
+/*
 	if (m_port_mapinfo.size() > 1)
 	{
 		// portIndex[0] should be the primary display
@@ -288,7 +344,7 @@ bool DisplayCfg::bNeedConstruct(const int portIndex[3])
 			bNeedClone = true;
 		}
 	}
-	return (bNeedSwapPrimary || bNeedClone);
+    return (bNeedSwapPrimary || bNeedClone);*/
 }
 
 NvAPI_Status DisplayCfg::Run(const int* portIndex, int ConnectStatus)

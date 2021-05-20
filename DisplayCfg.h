@@ -1,5 +1,5 @@
 #pragma once
-#include "include\nvapi.h"
+#include "nvapi.h"
 #include <iostream>
 #include <vector>
 #include<map>
@@ -43,13 +43,12 @@ enum eDisplayState
 #define DP1CONNECT 0x00000002 //Port 1
 #define DP2CONNECT 0x00000004 //Port 2
 
- //Port 0 DVI  ---->  Copy DP1, Pos 1920 0
+ //Port 0 DVI  ---->  Copy DP2, Pos 0 0
  //port 1(the middle one) DP next to DVI ---->  Pos, 1920 0
  //port 2(the outter one) The last DP  ----> Primary,   Pos 0,0 bitmask DP2CONNECT
-const int K2200_portIndex[3] = { 2, 1, 0 }; // Primary, extend, clone extend
-//const int K2200_portIndex[3] = { 0, 1, 2 };
+
+const int K2200_portIndex[3] = { 2, 1, 0 }; // Primary, extend, clone Primary
 const int K2200_bitmask[3] = { DVICONNECT , DP1CONNECT, DP2CONNECT };
-// K2200_bitmask[K2200_portIndex[0]] -->K2200_bitmask[2] Port DP2
 
 class DisplayCfg
 {
@@ -61,7 +60,7 @@ public:
 	NvAPI_Status FetchPathInfo();
 	int GetPrimaryInfoIndex();
 	//checkDisplayPos();
-	bool bNeedConstruct(const int portIndex[3]);
+    bool bNeedConstruct(const int* portIndex, int ConnectStatus);
 	bool SwapPrimary(int srcLoc, int destLoc);
 	bool CloneExtendDisplay(int srcLoc, int destLoc);
 	void ShowCurrentDisplayConfig();
