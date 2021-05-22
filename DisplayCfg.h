@@ -1,11 +1,18 @@
 #pragma once
-#include "nvapi.h"
+#include "include\nvapi.h"
 #include <iostream>
 #include <vector>
 #include<map>
 #include <iterator>
 const int MAX_OUTPUT_NUM = 4; 
 using namespace std;
+
+struct PathIdx
+{
+	int iPathIdx;
+	int iPathSubIdx;
+};
+
 /*****************
 	We store the portindex correspoding infomation in MonitorInfo
 	bPrimary: if is primary display
@@ -23,8 +30,9 @@ struct MonitorInfo
 	NV_EDID edid;
 	bool bPrimary;
 	NvU32 nDisplayID;
-	NvU16 iPathIdx;  // Index for PathInfo
-	NvU16 iPathSubIdx; // Default is 0, if > 0, it means pathinfo.targetcount > 1
+	PathIdx pathIdx;
+	//NvU16 iPathIdx;  // Index for PathInfo
+	//NvU16 iPathSubIdx; // Default is 0, if > 0, it means pathinfo.targetcount > 1
 };
 
 enum eDisplayState
@@ -49,6 +57,8 @@ enum eDisplayState
 
 const int K2200_portIndex[3] = { 2, 1, 0 }; // Primary, extend, clone Primary
 const int K2200_bitmask[3] = { DVICONNECT , DP1CONNECT, DP2CONNECT };
+
+
 
 class DisplayCfg
 {
