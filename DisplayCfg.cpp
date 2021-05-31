@@ -187,7 +187,7 @@ NvAPI_Status DisplayCfg::Construct_primary(const int portIndex[3], int ConnectSt
 
 	if (bNeedClone)
 	{
-		m_ToSet_pathInfo[0].sourceModeInfoCount = 2;
+        m_ToSet_pathInfo[0].sourceModeInfoCount = 1;//2;
 	}
 	else
 		m_ToSet_pathInfo[0].sourceModeInfoCount = 1;
@@ -197,16 +197,16 @@ NvAPI_Status DisplayCfg::Construct_primary(const int portIndex[3], int ConnectSt
 		(NV_DISPLAYCONFIG_SOURCE_MODE_INFO_V2*)malloc(m_ToSet_pathInfo[0].sourceModeInfoCount * sizeof(NV_DISPLAYCONFIG_SOURCE_MODE_INFO_V2));
 	memset(m_ToSet_pathInfo[0].sourceModeInfo, 0, m_ToSet_pathInfo[0].sourceModeInfoCount * sizeof(NV_DISPLAYCONFIG_SOURCE_MODE_INFO_V2));
 
-	m_ToSet_pathInfo[0].sourceModeInfo[0] = m_pathInfo[iDestPrimaryIndex.iPathIdx].sourceModeInfo[iDestPrimaryIndex.iPathSubIdx];
+    m_ToSet_pathInfo[0].sourceModeInfo[0] = m_pathInfo[iDestPrimaryIndex.iPathIdx].sourceModeInfo[0]; //iDestPrimaryIndex.iPathSubIdx];
 	m_ToSet_pathInfo[0].sourceModeInfo[0].bGDIPrimary = true;
-	m_ToSet_pathInfo[0].sourceModeInfo->position = { 0,0 };
-
+    m_ToSet_pathInfo[0].sourceModeInfo[0].position = { 0,0 };
+/*
 	if (bNeedClone)
 	{
-		m_ToSet_pathInfo[0].sourceModeInfo[1] = m_pathInfo[ICloned.iPathIdx].sourceModeInfo[ICloned.iPathSubIdx];
+        m_ToSet_pathInfo[0].sourceModeInfo[1] = m_pathInfo[ICloned.iPathIdx].sourceModeInfo[0];//ICloned.iPathSubIdx];
 		m_ToSet_pathInfo[0].sourceModeInfo->position = { 0,0 };
 	}
-
+*/
     if (ISingleSrc.iPathIdx != -1)
     {
         m_ToSet_pathInfo[1].sourceModeInfo = m_pathInfo[ISingleSrc.iPathIdx].sourceModeInfo;
@@ -328,12 +328,17 @@ bool DisplayCfg::bNeedConstruct(const int* portIndex, int ConnectStatus)
 			else
 				bNeedClone = true;
 
-			if (m_port_mapinfo[portIndex[0]].pos.x != 0 || m_port_mapinfo[portIndex[2]].pos.x != 0)
-				bNeedSwapPrimary = true;
+            if (m_port_mapinfo[portIndex[0]].pos.x != 0 || m_port_mapinfo[portIndex[2]].pos.x != 0
+                    || m_port_mapinfo[portIndex[2]].pos.x!= 1920)
+            {
+                // For 3 monitor we must do clone, for easily op
+                bNeedClone = true;
+                bNeedSwapPrimary = true;
+            }
 		}
 	}
 
-    if (m_pathCount == 3)
+     if (m_pathCount == 3)
     {
         bNeedClone = true;
         //ignore the portindx[2], construct as portindex[0]
@@ -682,10 +687,11 @@ NvAPI_Status DisplayCfg::GetPortIndex()
 			info.pathIdx.iPathIdx = i;
 			info.pathIdx.iPathSubIdx = j;
 
+            int sourcecount = m_pathInfo[i].sourceModeInfoCount;
 			info.nDisplayID = displayID;
-			info.pos = m_pathInfo[i].sourceModeInfo[j].position;
+            info.pos = m_pathInfo[i].sourceModeInfo[sourcecount-1].position;
 			info.connect_data = connectInfo.connector[0]; // TODO: totally 4 connectors?
-			info.bPrimary = /*(info.iPathSubIdx == 0 &&*/ m_pathInfo[i].sourceModeInfo->bGDIPrimary;
+            info.bPrimary = /*(info.iPathSubIdx == 0 &&*/ m_pathInfo[i].sourceModeInfo[sourcecount-1].bGDIPrimary;
 
 			memset(info.edid.EDID_Data, 0,edid.sizeofEDID);
 

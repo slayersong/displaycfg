@@ -1,5 +1,5 @@
 #pragma once
-#include "include\nvapi.h"
+#include "nvapi.h"
 #include <iostream>
 #include <vector>
 #include<map>
